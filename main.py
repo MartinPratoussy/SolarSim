@@ -20,7 +20,7 @@ time_delta = clock.tick(60) / 1000.0
 ui = GameUI(WIDTH, HEIGHT)
 
 # Create celestial bodies
-sun = Body("Sun", 0, 0, 50, (255, 255, 0), MASS_SUN)
+sun = Body("Sun", 0, 0, 50, (255, 255, 0), MASS_SUN, real_radius=7e8)
 
 # Create solar system
 solar_system = SolarSystem([sun])
@@ -90,7 +90,7 @@ while True:
                 radius = 3
                 color = (180, 180, 180)
 
-            new_body = Body(selected_type, sx, sy, radius, color, mass, vx, vy)
+            new_body = Body(selected_type, sx, sy, radius, color, mass, vx, vy, real_radius=6.4e6)
             solar_system.bodies.append(new_body)
 
         ui.process_events(event)
@@ -104,6 +104,8 @@ while True:
     # Draw celestial bodies
     for body in solar_system.bodies:
         body.draw(screen, SCALE, WIDTH, HEIGHT)
+        
+    solar_system.draw_explosions(screen, SCALE, WIDTH, HEIGHT)
 
     # Draw the GUI elements
     ui.update(time_delta)
