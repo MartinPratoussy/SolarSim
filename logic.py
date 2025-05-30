@@ -91,33 +91,47 @@ class SolarSystem:
                 dy = body1.y - body2.y
                 distance = math.sqrt(dx**2 + dy**2)
                 if distance < (body1.real_radius*100 + body2.real_radius*100):
+                    
+                    # Pick survivor and absorber
+                    if body1.mass >= body2.mass:
+                        survivor, absorber = body1, body2
+                    else:
+                        survivor, absorber = body2, body1
+
                     # Merge masses and momentum
-                    total_mass = body1.mass + body2.mass
-                    new_x = (body1.x * body1.mass + body2.x * body2.mass) / total_mass
-                    new_y = (body1.y * body1.mass + body2.y * body2.mass) / total_mass
-                    new_vx = (body1.vx * body1.mass + body2.vx * body2.mass) / total_mass
-                    new_vy = (body1.vy * body1.mass + body2.vy * body2.mass) / total_mass
+                    total_mass = survivor.mass + absorber.mass
+                    survivor.vx = (survivor.vx * survivor.mass + absorber.vx * absorber.mass) / total_mass
+                    survivor.vy = (survivor.vy * survivor.mass + absorber.vy * absorber.mass) / total_mass
+                    survivor.mass = total_mass
+                    survivor.radius = (survivor.radius ** 1.5 + absorber.radius ** 1.5) ** (1 / 1.5)
+                    survivor.real_radius = (survivor.real_radius ** 1.5 + absorber.real_radius ** 1.5) ** (1 / 1.5)
 
-                    new_radius = (body1.radius ** 1.5 + body2.radius ** 1.5) ** (1 / 1.5)
-                    new_real_radius = (body1.real_radius ** 1.5 + body2.real_radius ** 1.5) ** (1 / 1.5)
-
-                    merged = Body("Merged", new_x, new_y, new_radius,
-                                (255, 100, 0), total_mass, new_vx, new_vy,
-                                real_radius=new_real_radius)
-
-                    new_bodies.append(merged)
-                    removed.update([body1, body2])
-
-                    self.explosions.append((new_x, new_y, new_radius))
+                    removed.update([absorber]) # Only remove the absorbed one
+                    self.explosions.append((survivor.x, survivor.y, survivor.radius))
+                    
+                    new_bodies.append(survivor)
 
                     # Create debris
                     for _ in range(5):
                         angle = random.uniform(0, 2 * math.pi)
                         speed = random.uniform(20000, 50000)
-                        debris_vx = new_vx + math.cos(angle) * speed
-                        debris_vy = new_vy + math.sin(angle) * speed
-                        debris = Body("Debris", new_x, new_y, 2, (200, 200, 200),
-                                    1e16, debris_vx, debris_vy, real_radius=1e5, collidable=False)
+                        debris_mass = random.uniform(1e15, 5e16)
+                        debris_radius = random.uniform(1, 4)
+                        real_radius = debris_radius * 5e4
+                        debris_vx = survivor.vx + math.cos(angle) * speed
+                        debris_vy = survivor.vy + math.sin(angle) * speed
+                        debris = Body(
+                            name="Debris",
+                            x=survivor.x,
+                            y=survivor.y,
+                            draw_radius=2,
+                            color=(200, 200, 200),
+                            mass=debris_mass,
+                            vx=debris_vx,
+                            vy=debris_vy,
+                            real_radius=real_radius,
+                            collidable=False if random.random() < 0.6 else True
+                        )
                         new_bodies.append(debris)
 
                     break
