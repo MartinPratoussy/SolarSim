@@ -30,13 +30,14 @@ interface NucleusObj {
 interface ElectronObj {
   nucleus: NucleusObj;
   mesh: THREE.Mesh;
-  shellN: number;       // 1-indexed
-  slotIndex: number;    // position within shell for angle offset
+  shellN: number;
   state: 'free' | 'spiral' | 'orbital' | 'excited';
   angle: number;
   spiralTimer: number;
   spiralStartR: number;
   exciteTimer: number;
+  jumpProgress: number;  // -1 = idle, 0→1 = animating between shells
+  jumpFromShell: number; // shell index before the jump
 }
 
 interface PhotonObj {
@@ -260,21 +261,22 @@ export class Scale3Atomic implements IScale {
 
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(0.16, 12, 12),
-      new THREE.MeshBasicMaterial({ color: 0x9ae6ff }),
+      new THREE.MeshStandardMaterial({ color: 0x9ae6ff, emissive: 0x1266a0, emissiveIntensity: 0.5 }),
     );
     mesh.position.set(x, y, 0);
     this.scene.add(mesh);
 
-    const slotIndex  = this.electrons.filter(e => e.nucleus === target && e.shellN === shellIndex + 1).length;
     const spiralStartR = new THREE.Vector3(x - target.position.x, y - target.position.y, 0).length();
 
     const el: ElectronObj = {
       nucleus: target, mesh,
-      shellN: shellIndex + 1, slotIndex,
+      shellN: shellIndex + 1,
       state: 'free',
       angle: Math.random() * Math.PI * 2,
       spiralTimer: 0, spiralStartR,
       exciteTimer: 0,
+      jumpProgress: -1,
+      jumpFromShell: 1,
     };
     target.assignedElectrons++;
     this.electrons.push(el);
@@ -297,22 +299,22 @@ export class Scale3Atomic implements IScale {
   private updateElectron(el: ElectronObj, dt: number): void {
     const cx = el.nucleus.position.x, cy = el.nucleus.position.y;
     const targetR = SHELL_RADII[el.shellN - 1];
+    const mat = el.mesh.material as THREE.MeshStandardMaterial;
 
+    // ── free: fly toward nucleus ─────────────────────────────────────────────
     if (el.state === 'free') {
       const dx = cx - el.mesh.position.x, dy = cy - el.mesh.position.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < targetR + 0.6) {
-        el.state = 'spiral';
-        el.spiralStartR = dist;
-        el.spiralTimer  = 0;
+        el.state = 'spiral'; el.spiralStartR = dist; el.spiralTimer = 0;
         return;
       }
-      const spd = 7;
-      el.mesh.position.x += (dx / dist) * spd * dt;
-      el.mesh.position.y += (dy / dist) * spd * dt;
+      el.mesh.position.x += (dx / dist) * 7 * dt;
+      el.mesh.position.y += (dy / dist) * 7 * dt;
       return;
     }
 
+    // ── spiral: tighten in ──────────────────────────────────────────────────
     if (el.state === 'spiral') {
       el.spiralTimer = Math.min(el.spiralTimer + dt * 0.8, 1);
       el.angle += dt * 5.5;
@@ -323,26 +325,53 @@ export class Scale3Atomic implements IScale {
         Math.sin(el.angle * 3) * 0.05,
       );
       if (el.spiralTimer >= 1) {
-        el.state = 'orbital';
+        el.state = 'orbital'; el.jumpProgress = -1;
+        mat.color.setHex(0x9ae6ff); mat.emissive.setHex(0x1266a0); mat.emissiveIntensity = 0.5;
         EventBus.emit('edu:event', { text: `${ELEMENTS[el.nucleus.Z].symbol} electron settled into n=${el.shellN} shell.` });
         this.checkNeutral(el.nucleus);
       }
       return;
     }
 
-    // orbital or excited
-    const baseOffset = (2 * Math.PI * el.slotIndex) / SHELL_MAX[el.shellN - 1];
-    const speed      = el.state === 'excited' ? 1.8 : 3.0 / targetR; // inner orbits faster
-    el.angle += dt * speed;
-    const a = el.angle + baseOffset;
-    el.mesh.position.set(cx + Math.cos(a) * targetR, cy + Math.sin(a) * targetR, Math.sin(a * 2) * 0.05);
+    // ── orbital / excited: base rotation + peer repulsion ───────────────────
+    const baseSpeed = 3.0 / targetR;
+    const peers = this.electrons.filter(p =>
+      p !== el && p.nucleus === el.nucleus && p.shellN === el.shellN &&
+      (p.state === 'orbital' || p.state === 'excited'),
+    );
+    let repForce = 0;
+    for (const peer of peers) {
+      let da = peer.angle - el.angle;
+      while (da >  Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      const absDa = Math.abs(da) + 0.08;
+      repForce -= Math.sign(da) * 0.55 / (absDa * absDa);
+    }
+    el.angle += (baseSpeed + repForce) * dt;
 
+    // ── jump animation (outward on excite, inward on decay) ─────────────────
+    let r = targetR;
+    if (el.jumpProgress >= 0) {
+      el.jumpProgress = Math.min(el.jumpProgress + dt * 3.5, 1);
+      const fromR = SHELL_RADII[el.jumpFromShell - 1];
+      r = THREE.MathUtils.lerp(fromR, targetR, THREE.MathUtils.smoothstep(el.jumpProgress, 0, 1));
+      if (el.jumpProgress >= 1) el.jumpProgress = -1;
+    }
+    el.mesh.position.set(cx + Math.cos(el.angle) * r, cy + Math.sin(el.angle) * r, Math.sin(el.angle * 2) * 0.05);
+
+    // ── excited state visuals + timer ────────────────────────────────────────
     if (el.state === 'excited') {
+      mat.color.setHex(0xffeeaa);
+      mat.emissive.setHex(0xffa500);
+      mat.emissiveIntensity = 1.0 + Math.abs(Math.sin(el.angle * 6)) * 0.5;
       el.exciteTimer -= dt;
       if (el.exciteTimer <= 0) {
-        const from = el.shellN;
-        el.shellN  = Math.max(1, el.shellN - 1);
-        el.state   = 'orbital';
+        const from      = el.shellN;
+        el.jumpFromShell = el.shellN;
+        el.jumpProgress  = 0;
+        el.shellN        = Math.max(1, el.shellN - 1);
+        el.state         = 'orbital';
+        mat.color.setHex(0x9ae6ff); mat.emissive.setHex(0x1266a0); mat.emissiveIntensity = 0.5;
         this.emitPhoton(el.nucleus.position.clone(), from, el.shellN);
       }
     }
@@ -372,14 +401,19 @@ export class Scale3Atomic implements IScale {
     let any = false;
     this.electrons.forEach(el => {
       if (el.state === 'orbital' && el.shellN < ELEMENTS[el.nucleus.Z].shells.length) {
-        el.state = 'excited';
-        el.shellN += 1;
-        el.exciteTimer = 0.5 + Math.random() * 0.9;
+        const mat = el.mesh.material as THREE.MeshStandardMaterial;
+        // White flash on excitation
+        mat.color.setHex(0xffffff); mat.emissive.setHex(0xffffff); mat.emissiveIntensity = 2.5;
+        el.jumpFromShell = el.shellN;
+        el.jumpProgress  = 0;
+        el.shellN       += 1;
+        el.state         = 'excited';
+        el.exciteTimer   = 0.5 + Math.random() * 0.9;
         any = true;
       }
     });
-    if (any) EventBus.emit('edu:event', { text: 'Electrons excited — watch photons radiate as they decay back.' });
-    else      EventBus.emit('edu:event', { text: 'No electrons to excite (ground state or single-shell only).' });
+    if (any) EventBus.emit('edu:event', { text: '⚡ Electrons excited — they jump outward (yellow glow), then decay back emitting a photon.' });
+    else      EventBus.emit('edu:event', { text: 'No electrons to excite — all are on the outermost shell or not yet settled.' });
   }
 
   private emitPhoton(origin: THREE.Vector3, from: number, to: number): void {
