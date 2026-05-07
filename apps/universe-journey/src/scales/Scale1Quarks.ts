@@ -189,7 +189,7 @@ export class Scale1Quarks implements IScale {
   private buttonMap = new Map<Flavor, HTMLButtonElement>();
   private formedKinds = new Set<string>();
   private discoveredParticles = new Set<string>();
-  private discoveryTimeoutId: number | null = null;
+  private discoveryTimeoutId: number | null = null; // kept for legacy clearTimeout safety
   private completed = false;
   private nextId = 1;
   private nextHadronId = 1;
@@ -645,6 +645,7 @@ export class Scale1Quarks implements IScale {
 
     if (this.discoveryTimeoutId !== null) {
       window.clearTimeout(this.discoveryTimeoutId);
+      this.discoveryTimeoutId = null;
     }
 
     const close = document.getElementById('discovery-close')!;
@@ -652,13 +653,8 @@ export class Scale1Quarks implements IScale {
       modal.classList.remove('visible');
       modal.setAttribute('aria-hidden', 'true');
       close.onclick = null;
-      if (this.discoveryTimeoutId !== null) {
-        window.clearTimeout(this.discoveryTimeoutId);
-        this.discoveryTimeoutId = null;
-      }
     };
     close.onclick = dismiss;
-    this.discoveryTimeoutId = window.setTimeout(dismiss, 15000);
   }
 
   private decayTopQuark(quark: Quark): void {
