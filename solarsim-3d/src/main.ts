@@ -33,7 +33,11 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.06;
 controls.minDistance = 5;
 controls.maxDistance = 8000;
-controls.addEventListener('start', () => { flyState = null; followMode = false; }); // cancel fly+follow on drag
+controls.addEventListener('start', () => {
+  // Cancel fly animation when user grabs the camera, but keep followMode —
+  // OrbitControls will orbit around the followed body's moving target.
+  flyState = null;
+}); // single-click or Escape still cancels follow (see click handler)
 
 // ── Post-processing (gravitational lens distortion) ───────────────────────
 const composer = new EffectComposer(renderer);
