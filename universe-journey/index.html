@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Universe Journey</title>
+  <link rel="stylesheet" href="./styles/main.css"/>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="scale-hud">
+    <div id="scale-dots">
+      <span class="dot" data-scale="0"></span>
+      <span class="dot" data-scale="1"></span>
+      <span class="dot" data-scale="2"></span>
+      <span class="dot" data-scale="3"></span>
+      <span class="dot" data-scale="4"></span>
+      <span class="dot" data-scale="5"></span>
+    </div>
+    <div id="scale-label">Scale 1 — Quark Field</div>
+    <button id="skip-btn">Skip →</button>
+  </div>
+
+  <div id="edu-panel">
+    <h2 id="edu-title">Welcome</h2>
+    <div id="edu-body"></div>
+    <div id="edu-equation" class="equation-box"></div>
+    <div id="edu-hint" class="hint"></div>
+    <div id="edu-events" class="event-log"></div>
+  </div>
+
+  <div id="action-bar"></div>
+
+  <div id="progress-bar-container" style="display:none">
+    <label>Jeans instability</label>
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <span id="progress-label">0%</span>
+  </div>
+
+  <div id="toast"></div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
