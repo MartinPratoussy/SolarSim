@@ -485,8 +485,11 @@ button {
 }
 
 .stellar-widget {
-  width: 250px;
+  width: 270px;
   padding: 14px 16px;
+  background: linear-gradient(180deg, rgba(8, 24, 46, 0.78), rgba(4, 12, 24, 0.82));
+  border: 1px solid rgba(147, 197, 253, 0.22);
+  box-shadow: 0 0 26px rgba(59, 130, 246, 0.14);
 }
 
 .stellar-widget h3 {
@@ -553,6 +556,12 @@ button {
   background: radial-gradient(circle, #fff9c4, #f59e0b);
   box-shadow: 0 0 12px rgba(255, 237, 160, 0.8);
   transform: translate(-50%, -50%);
+  animation: hrPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes hrPulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 237, 160, 0.55); }
+  50% { box-shadow: 0 0 18px rgba(251, 146, 60, 0.9); }
 }
 
 .final-card {
