@@ -23,7 +23,7 @@ export class Scale5Stellar implements IScale {
   private flash: THREE.Mesh | null = null;
   private initialRadius = 7.5;
   private ignited = false;
-  private clickHandler: ((e: MouseEvent) => void) | null = null;
+  private clickHandler: ((e: PointerEvent) => void) | null = null;
   private shockRings: Array<{ mesh: THREE.Mesh; life: number }> = [];
   private overlay: HTMLDivElement | null = null;
   private tempFill: HTMLDivElement | null = null;
@@ -74,15 +74,15 @@ export class Scale5Stellar implements IScale {
     this.ignited = false;
     this.setupActionBar();
     this.createOverlay();
-    this.clickHandler = (e: MouseEvent) => this.handleClickCompression(e);
-    renderer.domElement.addEventListener('click', this.clickHandler);
+    this.clickHandler = (e: PointerEvent) => this.handleClickCompression(e);
+    renderer.domElement.addEventListener('pointerdown', this.clickHandler);
     document.getElementById('progress-bar-container')!.style.display = 'none';
     this.emitEducation();
   }
 
   dispose(): void {
     if (this.renderer && this.clickHandler) {
-      this.renderer.domElement.removeEventListener('click', this.clickHandler);
+      this.renderer.domElement.removeEventListener('pointerdown', this.clickHandler);
     }
     this.clickHandler = null;
     document.getElementById('action-bar')!.innerHTML = '';
@@ -140,7 +140,7 @@ export class Scale5Stellar implements IScale {
     this.camera.updateProjectionMatrix();
   }
 
-  private handleClickCompression(e: MouseEvent): void {
+  private handleClickCompression(e: PointerEvent): void {
     if (!this.renderer || this.ignited) return;
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;

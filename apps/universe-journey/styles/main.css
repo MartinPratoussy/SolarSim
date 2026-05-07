@@ -29,6 +29,7 @@ button {
   width: 100%;
   height: 100%;
   display: block;
+  touch-action: none;
 }
 
 #scale-hud {
@@ -1092,4 +1093,98 @@ button {
 
 .at-progress strong {
   color: #7dd3fc;
+}
+
+@media (max-width: 920px) {
+  #scale-hud {
+    top: max(8px, env(safe-area-inset-top));
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    padding: 6px 10px;
+    gap: 8px;
+    border-radius: 14px;
+  }
+
+  #scale-label {
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  #skip-btn,
+  #continue-btn {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  #edu-panel {
+    width: min(86vw, 320px);
+    padding: 16px 12px;
+  }
+
+  #edu-panel.collapsed {
+    transform: translateX(min(86vw, 320px));
+  }
+
+  #action-bar {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    width: auto;
+    gap: 6px;
+    max-height: 36vh;
+    overflow-y: auto;
+    padding: 6px 4px 2px;
+  }
+
+  #action-bar button {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  #progress-bar-container {
+    top: calc(64px + env(safe-area-inset-top));
+    width: min(90vw, 340px);
+  }
+
+  .stellar-widgets {
+    left: 8px;
+    top: auto;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .stellar-widget {
+    width: min(58vw, 220px);
+    padding: 10px 12px;
+  }
+
+  .hr-diagram {
+    height: 90px;
+  }
+
+  #atomic-table {
+    left: 6px;
+    right: 6px;
+    transform: none;
+    width: auto;
+    max-width: none;
+    bottom: calc(70px + env(safe-area-inset-bottom));
+    padding: 8px 8px 6px;
+    overflow-x: auto;
+  }
+
+  .at-grid {
+    width: max-content;
+  }
+
+  .at-cell {
+    width: 32px;
+    height: 32px;
+  }
+
+  .at-sym {
+    font-size: 13px;
+  }
 }

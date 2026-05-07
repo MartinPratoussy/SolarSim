@@ -22,6 +22,11 @@ export class EduPanel {
   constructor() {
     // Panel collapse toggle
     const toggleBtn = document.getElementById('edu-toggle-btn') as HTMLButtonElement;
+    const shouldStartCollapsed = window.matchMedia('(max-width: 920px)').matches;
+    if (shouldStartCollapsed) {
+      this.panel.classList.add('collapsed');
+      toggleBtn.textContent = '▶';
+    }
     toggleBtn.addEventListener('click', () => {
       const collapsed = this.panel.classList.toggle('collapsed');
       toggleBtn.textContent = collapsed ? '▶' : '◀';

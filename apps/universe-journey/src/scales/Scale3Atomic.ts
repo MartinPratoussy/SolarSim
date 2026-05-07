@@ -105,7 +105,7 @@ export class Scale3Atomic implements IScale {
   private discovered = new Set<number>();
   private completed  = false;
   private tableEl:   HTMLElement | null = null;
-  private clickCb:   ((e: MouseEvent) => void) | null = null;
+  private clickCb:   ((e: PointerEvent) => void) | null = null;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -133,12 +133,12 @@ export class Scale3Atomic implements IScale {
     this.emitEducation();
 
     this.clickCb = (e) => this.handleClick(e);
-    renderer.domElement.addEventListener('click', this.clickCb);
+    renderer.domElement.addEventListener('pointerdown', this.clickCb);
   }
 
   dispose(): void {
     if (this.renderer && this.clickCb) {
-      this.renderer.domElement.removeEventListener('click', this.clickCb);
+      this.renderer.domElement.removeEventListener('pointerdown', this.clickCb);
     }
     this.clickCb = null;
     this.tableEl?.remove();
@@ -234,8 +234,8 @@ export class Scale3Atomic implements IScale {
 
   // ── Electron shooting ─────────────────────────────────────────────────────
 
-  /** Convert canvas click → world coords → fire electron */
-  private handleClick(e: MouseEvent): void {
+  /** Convert canvas touch/click → world coords → fire electron */
+  private handleClick(e: PointerEvent): void {
     if (!this.renderer) return;
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndcX = ((e.clientX - rect.left) / rect.width)  * 2 - 1;

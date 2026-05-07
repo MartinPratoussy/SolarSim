@@ -30,7 +30,7 @@ export class Scale4GasCloud implements IScale {
   // shockwave ring visuals
   private rings: Array<{ mesh: THREE.Mesh; life: number }> = [];
 
-  private clickHandler: ((e: MouseEvent) => void) | null = null;
+  private clickHandler: ((e: PointerEvent) => void) | null = null;
 
   init(_container: HTMLElement, renderer: THREE.WebGLRenderer): void {
     this.renderer = renderer;
@@ -49,9 +49,9 @@ export class Scale4GasCloud implements IScale {
     this.camera.position.set(0, 0, 18);
     this.camera.lookAt(0, 0, 0);
 
-    // Click → shockwave
-    this.clickHandler = (e: MouseEvent) => this.handleClick(e);
-    renderer.domElement.addEventListener('click', this.clickHandler);
+    // Touch/click → shockwave
+    this.clickHandler = (e: PointerEvent) => this.handleClick(e);
+    renderer.domElement.addEventListener('pointerdown', this.clickHandler);
 
     document.getElementById('progress-bar-container')!.style.display = 'block';
     EventBus.emit('progress', { value: 0 });
@@ -60,7 +60,7 @@ export class Scale4GasCloud implements IScale {
 
   dispose(): void {
     if (this.renderer && this.clickHandler) {
-      this.renderer.domElement.removeEventListener('click', this.clickHandler);
+      this.renderer.domElement.removeEventListener('pointerdown', this.clickHandler);
     }
     this.clickHandler = null;
     document.getElementById('action-bar')!.innerHTML = '';
@@ -95,7 +95,7 @@ export class Scale4GasCloud implements IScale {
 
   // ── Click → shockwave ─────────────────────────────────────────────────────
 
-  private handleClick(e: MouseEvent): void {
+  private handleClick(e: PointerEvent): void {
     if (!this.renderer) return;
     const rect  = this.renderer.domElement.getBoundingClientRect();
     const ndcX  = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
