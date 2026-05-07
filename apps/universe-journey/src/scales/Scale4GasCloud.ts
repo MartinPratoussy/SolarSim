@@ -13,7 +13,7 @@ export class Scale4GasCloud implements IScale {
   readonly scaleLabel = '10¹² m';
 
   private scene    = new THREE.Scene();
-  private camera   = new THREE.OrthographicCamera(-10.5, 10.5, 7, -7, 0.1, 60);
+  private camera   = new THREE.OrthographicCamera(-8.5, 8.5, 5.5, -5.5, 0.1, 60);
   private renderer: THREE.WebGLRenderer | null = null;
 
   private positions:  THREE.Vector2[] = [];
@@ -43,7 +43,7 @@ export class Scale4GasCloud implements IScale {
     this.gravityEnabled = true;
     this.collapsed    = false;
     this.thermalLevel = 1;
-    this.spawnAtoms(300);
+    this.spawnAtoms(380);
     this.buildPoints();
     this.setupActionBar();
     this.camera.position.set(0, 0, 18);
@@ -85,10 +85,10 @@ export class Scale4GasCloud implements IScale {
 
   onResize(width: number, height: number): void {
     const aspect = Math.max(width / height, 1);
-    this.camera.left   = -7 * aspect;
-    this.camera.right  =  7 * aspect;
-    this.camera.top    =  7;
-    this.camera.bottom = -7;
+    this.camera.left   = -5.5 * aspect;
+    this.camera.right  =  5.5 * aspect;
+    this.camera.top    =  5.5;
+    this.camera.bottom = -5.5;
     this.camera.position.set(0, 0, 18);
     this.camera.updateProjectionMatrix();
   }
@@ -214,7 +214,7 @@ region, self-gravity wins — the cloud collapses into a <span class="edu-highli
     const remaining = Math.min(count, MAX_ATOMS - this.positions.length);
     for (let i = 0; i < remaining; i++) {
       const theta  = Math.random() * Math.PI * 2;
-      const radius = Math.sqrt(Math.random()) * 9.5;
+      const radius = Math.sqrt(Math.random()) * 10.5;
       this.positions.push(new THREE.Vector2(Math.cos(theta) * radius, Math.sin(theta) * radius * 0.82));
       this.velocities.push(new THREE.Vector2(
         randomGaussian() * 0.55 * this.thermalLevel,
@@ -235,7 +235,7 @@ region, self-gravity wins — the cloud collapses into a <span class="edu-highli
     this.geometry.setDrawRange(0, this.positions.length);
     this.points = new THREE.Points(
       this.geometry,
-      new THREE.PointsMaterial({ vertexColors: true, size: 0.22, transparent: true, opacity: 0.92, sizeAttenuation: true }),
+      new THREE.PointsMaterial({ vertexColors: true, size: 0.34, transparent: true, opacity: 0.96, sizeAttenuation: true }),
     );
     this.scene.add(this.points);
     this.updatePointGeometry();
