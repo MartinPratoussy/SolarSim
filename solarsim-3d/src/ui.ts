@@ -1,17 +1,23 @@
 import { Body } from './Body';
 import { AU } from './constants';
 import { EventBus } from './events';
+import { BODY_DETAILS, TYPE_WIKI } from './solarData';
 
 // ── Info panel elements ──────────────────────────────────────────────────
 const panel = document.getElementById('info-panel')!;
 const infoName = document.getElementById('info-name')!;
 const infoMass = document.getElementById('info-mass')!;
+const infoRadius = document.getElementById('info-radius')!;
 const infoSpeed = document.getElementById('info-speed')!;
 const infoDist = document.getElementById('info-dist')!;
 const infoPeriod = document.getElementById('info-period')!;
+const infoGravity = document.getElementById('info-gravity')!;
+const infoTemp = document.getElementById('info-temp')!;
+const infoMoons = document.getElementById('info-moons')!;
 const infoEdu = document.getElementById('info-edu')!;
 const infoFormula = document.getElementById('info-formula')!;
 const formulaToggle = document.getElementById('formula-toggle')!;
+const infoLink = document.getElementById('info-link') as HTMLAnchorElement;
 
 // ── Popup elements ────────────────────────────────────────────────────────
 const popup = document.getElementById('event-popup')!;
@@ -101,6 +107,9 @@ export function updateInfoPanel(body: Body | null, centralMass: number) {
 
   infoName.textContent = body.name;
   infoMass.textContent = `${body.mass.toExponential(2)} kg`;
+  infoRadius.textContent = body.realRadius >= 1e6
+    ? `${(body.realRadius / 1e3).toLocaleString(undefined, { maximumFractionDigits: 0 })} km`
+    : `${(body.realRadius / 1e3).toFixed(0)} km`;
   infoSpeed.textContent = `${(speedMS / 1000).toFixed(1)} km/s`;
   infoDist.textContent = distAU < 0.1
     ? `${(distM / 1000).toExponential(2)} km`
@@ -116,8 +125,36 @@ export function updateInfoPanel(body: Body | null, centralMass: number) {
     infoPeriod.textContent = '—';
   }
 
+  // Extra encyclopedic details (known bodies)
+  const details = BODY_DETAILS[body.name];
+  const gravityRow = document.getElementById('row-gravity')!;
+  const tempRow    = document.getElementById('row-temp')!;
+  const moonsRow   = document.getElementById('row-moons')!;
+
+  if (details) {
+    infoGravity.textContent = `${details.gravity} m/s²`;
+    infoTemp.textContent    = details.tempC;
+    infoMoons.textContent   = String(details.moons);
+    gravityRow.style.display = 'flex';
+    tempRow.style.display    = 'flex';
+    moonsRow.style.display   = 'flex';
+  } else {
+    gravityRow.style.display = 'none';
+    tempRow.style.display    = 'none';
+    moonsRow.style.display   = 'none';
+  }
+
+  // Wikipedia / reference link
+  const wikiUrl = details?.wikiUrl ?? TYPE_WIKI[body.type];
+  if (wikiUrl && infoLink) {
+    infoLink.href = wikiUrl;
+    infoLink.style.display = 'inline-block';
+  } else if (infoLink) {
+    infoLink.style.display = 'none';
+  }
+
   const { edu, formula } = getEduInfo(body);
-  infoEdu.textContent = edu;
+  infoEdu.textContent = details?.funFact ?? edu;
   infoFormula.textContent = formula;
   infoFormula.style.display = formulaVisible ? 'block' : 'none';
   formulaToggle.style.display = formula ? 'inline' : 'none';

@@ -120,12 +120,22 @@
     <div id="info-panel">
       <h2 id="info-name">—</h2>
       <div class="stat"><span>Mass</span><span id="info-mass">—</span></div>
+      <div class="stat"><span>Radius</span><span id="info-radius">—</span></div>
       <div class="stat"><span>Speed</span><span id="info-speed">—</span></div>
       <div class="stat"><span>Distance from star</span><span id="info-dist">—</span></div>
       <div class="stat"><span>Orbital period</span><span id="info-period">—</span></div>
+      <div class="stat" id="row-gravity"><span>Surface gravity</span><span id="info-gravity">—</span></div>
+      <div class="stat" id="row-temp"><span>Temperature</span><span id="info-temp">—</span></div>
+      <div class="stat" id="row-moons"><span>Known moons</span><span id="info-moons">—</span></div>
       <div class="edu-text" id="info-edu"></div>
       <div class="formula" id="info-formula"></div>
-      <button id="formula-toggle">Show formula</button>
+      <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+        <button id="formula-toggle">Show formula</button>
+        <a id="info-link" href="#" target="_blank" rel="noopener noreferrer"
+           style="display:none; font-size:11px; color:#63b3ff; text-decoration:none; border:1px solid rgba(99,179,255,0.35); border-radius:5px; padding:3px 8px;">
+          🔗 Wikipedia
+        </a>
+      </div>
     </div>
 
     <!-- Event popup -->

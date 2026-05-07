@@ -17,6 +17,92 @@ export interface PlanetData {
   hasRing?: boolean;
 }
 
+/** Extra encyclopedic data shown in the info panel. Optional — user-placed bodies won't have it. */
+export interface BodyDetails {
+  gravity: number;      // m/s² surface gravity
+  tempC: string;        // surface/cloud temp description
+  moons: number;
+  funFact: string;
+  wikiUrl: string;
+}
+
+export const BODY_DETAILS: Record<string, BodyDetails> = {
+  Sun: {
+    gravity: 274,
+    tempC: '5,778 K (surface)',
+    moons: 8,
+    funFact: 'The Sun contains 99.86% of the total mass of the Solar System. Its core reaches 15 million °C where hydrogen fuses into helium.',
+    wikiUrl: 'https://en.wikipedia.org/wiki/Sun',
+  },
+  Mercury: {
+    gravity: 3.7,
+    tempC: '−180 °C to +430 °C',
+    moons: 0,
+    funFact: 'A day on Mercury (sunrise to sunrise) is longer than its year. Its enormous temperature swings are due to virtually no atmosphere.',
+    wikiUrl: 'https://en.wikipedia.org/wiki/Mercury_(planet)',
+  },
+  Venus: {
+    gravity: 8.87,
+    tempC: '+465 °C (avg)',
+    moons: 0,
+    funFact: 'Venus rotates backwards relative to most planets and is the hottest planet — its thick CO₂ atmosphere traps heat via a runaway greenhouse effect.',
+    wikiUrl: 'https://en.wikipedia.org/wiki/Venus',
+  },
+  Earth: {
+    gravity: 9.81,
+    tempC: '+15 °C (avg)',
+    moons: 1,
+    funFact: 'Earth is the densest planet and the only one known to harbor life. Its large Moon stabilises the axial tilt that keeps our climate stable.',
+    wikiUrl: 'https://en.wikipedia.org/wiki/Earth',
+  },
+  Mars: {
+    gravity: 3.72,
+    tempC: '−65 °C (avg)',
+    moons: 2,
+    funFact: 'Olympus Mons on Mars is the tallest volcano in the Solar System at 21.9 km — nearly 3× the height of Everest.',
+    wikiUrl: 'https://en.wikipedia.org/wiki/Mars',
+  },
+  Jupiter: {
+    gravity: 24.79,
+    tempC: '−110 °C (cloud top)',
+    moons: 95,
+    funFact: 'Jupiter\'s Great Red Spot is an anticyclonic storm that has raged for over 350 years. Jupiter acts as a gravitational shield, deflecting many comets.',
+    wikiUrl: 'https://en.wikipedia.org/wiki/Jupiter',
+  },
+  Saturn: {
+    gravity: 10.44,
+    tempC: '−140 °C (cloud top)',
+    moons: 146,
+    funFact: 'Saturn\'s rings are mostly water-ice and rock, only 10–100 m thick but spanning 282,000 km. Saturn is the least dense planet — it would float on water.',
+    wikiUrl: 'https://en.wikipedia.org/wiki/Saturn',
+  },
+  Uranus: {
+    gravity: 8.69,
+    tempC: '−195 °C (avg)',
+    moons: 27,
+    funFact: 'Uranus orbits on its side with an axial tilt of 98°, likely caused by a massive ancient collision. It emits almost no internal heat.',
+    wikiUrl: 'https://en.wikipedia.org/wiki/Uranus',
+  },
+  Neptune: {
+    gravity: 11.15,
+    tempC: '−200 °C (avg)',
+    moons: 16,
+    funFact: 'Neptune has the fastest winds in the Solar System — up to 2,100 km/h. It was the first planet predicted mathematically before it was observed.',
+    wikiUrl: 'https://en.wikipedia.org/wiki/Neptune',
+  },
+};
+
+/** Generic Wikipedia links for user-placed body types */
+export const TYPE_WIKI: Record<string, string> = {
+  star:      'https://en.wikipedia.org/wiki/Star',
+  planet:    'https://en.wikipedia.org/wiki/Planet',
+  moon:      'https://en.wikipedia.org/wiki/Natural_satellite',
+  asteroid:  'https://en.wikipedia.org/wiki/Asteroid',
+  comet:     'https://en.wikipedia.org/wiki/Comet',
+  blackhole: 'https://en.wikipedia.org/wiki/Black_hole',
+  debris:    'https://en.wikipedia.org/wiki/Accretion_(astrophysics)',
+};
+
 export const SOLAR_DATA = {
   sun: {
     name: 'Sun',
