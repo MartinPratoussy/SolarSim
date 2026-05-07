@@ -1,6 +1,31 @@
 import * as THREE from 'three';
 import { EventBus } from '../EventBus';
+import { mathHtml } from '../EduPanel';
 import type { IScale } from '../ScaleManager';
+
+interface AtomInfo {
+  name: string;
+  symbol: string;
+  protons: number;
+  electrons: number;
+  shell: string;
+  mass: string;
+  accentColor: number;
+  fact: string;
+}
+
+const ATOM_DATA: Record<'H' | 'He', AtomInfo> = {
+  H: {
+    name: 'Hydrogen', symbol: 'H', protons: 1, electrons: 1,
+    shell: '1s¹', mass: '1.008 u', accentColor: 0x90cdf4,
+    fact: 'The simplest and most abundant atom in the universe — 75% of all baryonic matter. Its one electron fills the lowest energy shell (1s¹). Hydrogen\'s discrete spectrum was the first quantum fingerprint decoded, directly leading Bohr to his atomic model in 1913. In nebulae, the 1→2 Lyman-α transition at 121.6 nm is the brightest UV line in the cosmos.',
+  },
+  He: {
+    name: 'Helium', symbol: 'He', protons: 2, electrons: 2,
+    shell: '1s²', mass: '4.003 u', accentColor: 0xffd75e,
+    fact: 'The noble gas. Its two electrons completely fill the 1s shell (1s²) — a closed shell that makes helium chemically inert. Helium will never form a molecule. It was discovered in the Sun\'s spectrum 27 years before it was found on Earth, hence its name from Helios, the Greek sun god. It\'s the second most abundant element in the universe.',
+  },
+};
 
 interface OrbitalRing {
   mesh: THREE.Mesh;
@@ -50,6 +75,7 @@ export class Scale3Atomic implements IScale {
   private atoms: Atom[] = [];
   private photons: Photon[] = [];
   private completed = false;
+  private discoveredAtoms = new Set<'H' | 'He'>();
 
   init(_container: HTMLElement, renderer: THREE.WebGLRenderer): void {
     this.renderer = renderer;
@@ -61,6 +87,7 @@ export class Scale3Atomic implements IScale {
     this.atoms = [this.createAtom('H', new THREE.Vector3(-4.5, 0, 0)), this.createAtom('He', new THREE.Vector3(4.5, 0, 0))];
     this.photons = [];
     this.completed = false;
+    this.discoveredAtoms.clear();
     this.setupActionBar();
     this.emitEducation();
   }
@@ -68,6 +95,9 @@ export class Scale3Atomic implements IScale {
   dispose(): void {
     document.getElementById('action-bar')!.innerHTML = '';
     document.getElementById('progress-bar-container')!.style.display = 'none';
+    document.getElementById('discovery-close')!.onclick = null;
+    document.getElementById('discovery-modal')!.classList.remove('visible');
+    document.getElementById('discovery-modal')!.setAttribute('aria-hidden', 'true');
     this.scene.clear();
     this.atoms = [];
     this.photons = [];
@@ -111,19 +141,65 @@ export class Scale3Atomic implements IScale {
 
   private emitEducation(): void {
     EventBus.emit('edu:update', {
-      title: 'Scale 3 — Atomic (10⁻¹⁰ m)',
-      body: `Atoms form when negatively charged electrons become bound to
-positive nuclei. Quantum mechanics replaces tidy little planetary
-orbits with probability clouds, but energy levels still come in
-discrete shells.
+      title: 'Scale 3 — Atomic · 10⁻¹⁰ m',
+      body: `
+<div class="edu-section">
+  <p>You have zoomed out to the scale of the <span class="edu-highlight">atom</span> — ångströms (Å, 10⁻¹⁰ m). The nucleus is now a tiny speck at the centre; electrons form quantum clouds around it. Atoms are 99.99999% empty space — hydrogen is about 100,000× wider than its nucleus.</p>
+</div>
 
-Hydrogen’s single proton makes the simplest atom. Helium’s two-proton,
-two-neutron nucleus pulls two electrons into a compact 1s shell.
-Excited electrons fall back down and emit photons with specific
-energies — the spectral fingerprints astronomers see in stars and nebulae.`,
-      hint: 'Feed electrons into hydrogen and helium, then excite them to watch spectral photons fly out.',
+<hr/>
+
+<div class="edu-section">
+  <div class="edu-section-title">Bohr Energy Levels</div>
+  <p>Electrons can only occupy <span class="edu-highlight">discrete energy shells</span>. The energy of shell <em>n</em> in hydrogen is:</p>
+  <div class="edu-equation-inline">${mathHtml('E_n = -\\dfrac{13.6\\,\\text{eV}}{n^2}', false)}</div>
+  <div class="edu-card-grid">
+    <div class="edu-card">
+      <div class="edu-card-name">n=1 · ground state</div>
+      <div class="edu-card-sub">E = −13.6 eV — most stable. Electron sits as close to nucleus as quantum mechanics allows</div>
+    </div>
+    <div class="edu-card">
+      <div class="edu-card-name">n=2 · first excited</div>
+      <div class="edu-card-sub">E = −3.4 eV — temporary. Electron jumps here when it absorbs energy, then falls back</div>
+    </div>
+    <div class="edu-card">
+      <div class="edu-card-name">n=∞ · ionisation</div>
+      <div class="edu-card-sub">E = 0 — electron escapes the atom. Requires 13.6 eV to ionise H from ground state</div>
+    </div>
+  </div>
+</div>
+
+<hr/>
+
+<div class="edu-section">
+  <div class="edu-section-title">Spectral Lines — Photon Emission</div>
+  <p>When an excited electron falls from shell <em>n₂</em> to <em>n₁</em>, the energy difference is released as a photon. The <span class="edu-highlight">Rydberg formula</span> gives its wavelength:</p>
+  <div class="edu-equation-inline">${mathHtml('\\dfrac{1}{\\lambda} = R_H\\!\\left(\\dfrac{1}{n_1^2}-\\dfrac{1}{n_2^2}\\right)', false)}</div>
+  <div class="edu-card-grid">
+    <div class="edu-card">
+      <div class="edu-card-name" style="color:#ff8a65">2→1 · Lyman-α</div>
+      <div class="edu-card-sub">121.6 nm — ultraviolet. Seen in absorption in distant quasar spectra; reveals hydrogen clouds</div>
+    </div>
+    <div class="edu-card">
+      <div class="edu-card-name" style="color:#5eead4">3→2 · Hα Balmer</div>
+      <div class="edu-card-sub">656 nm — visible red. The line that colours nebulae pink-red in telescope images</div>
+    </div>
+    <div class="edu-card">
+      <div class="edu-card-name" style="color:#c4b5fd">3→1 · Lyman-β</div>
+      <div class="edu-card-sub">102.6 nm — deep ultraviolet</div>
+    </div>
+  </div>
+</div>
+
+<hr/>
+
+<div class="edu-section">
+  <div class="edu-section-title">Electron Shells &amp; Noble Gases</div>
+  <p>The first shell (n=1) holds exactly 2 electrons. Helium fills it completely — this <span class="edu-highlight">closed shell</span> makes helium chemically inert. It will never form a molecule. This pattern repeats across the periodic table: atoms with full shells are the noble gases.</p>
+</div>`,
+      hint: '⛛️ Add electrons to both atoms. Once neutral, hit ✨ Excite — watch coloured photons fly out as electrons decay back to ground state.',
     });
-    EventBus.emit('edu:event', { text: 'Hydrogen and helium nuclei wait for electrons to neutralise them.' });
+    EventBus.emit('edu:event', { text: 'H needs 1 electron · He needs 2 electrons. Add them to neutralise both atoms.' });
   }
 
   private setupActionBar(): void {
@@ -208,7 +284,7 @@ energies — the spectral fingerprints astronomers see in stars and nebulae.`,
       if (electron.timer >= 1) {
         electron.state = 'orbital';
         EventBus.emit('edu:event', { text: `${atom.key} captured an electron into the ${electron.orbitalN}s shell.` });
-        this.checkCompletion();
+        this.checkAtomComplete(atom);
       }
       return;
     }
@@ -264,18 +340,60 @@ energies — the spectral fingerprints astronomers see in stars and nebulae.`,
     EventBus.emit('edu:event', { text: `Photon emitted from n=${from} → n=${to}.` });
   }
 
-  private checkCompletion(): void {
-    const hydrogen = this.atoms.find((atom) => atom.key === 'H')!;
-    const helium = this.atoms.find((atom) => atom.key === 'He')!;
-    const hydrogenNeutral = hydrogen.electrons.some((electron) => electron.state !== 'spiral');
-    const heliumNeutral = helium.electrons.filter((electron) => electron.state !== 'spiral').length >= 2;
-    if (!this.completed && hydrogenNeutral && heliumNeutral) {
+  private checkAtomComplete(atom: Atom): void {
+    const settled = atom.electrons.filter((e) => e.state !== 'spiral').length;
+    if (settled < atom.capacity || this.discoveredAtoms.has(atom.key)) return;
+    this.discoveredAtoms.add(atom.key);
+    this.showAtomDiscovery(atom.key);
+    const info = ATOM_DATA[atom.key];
+    EventBus.emit('edu:event', { text: `${info.name} is now neutral — a complete atom!` });
+    EventBus.emit('toast', {
+      title: `${info.name} formed`,
+      body: `${atom.key === 'H' ? '1 electron in 1s¹' : '2 electrons in 1s²'} · ${info.mass}`,
+    });
+    if (this.discoveredAtoms.size === 2 && !this.completed) {
       this.completed = true;
-      EventBus.emit('toast', { title: 'Atoms complete', body: 'Neutral hydrogen and helium now drift through space, ready for nebular life.' });
-      EventBus.emit('edu:event', { text: 'Hydrogen and helium are fully neutral — the universe can now build a gas cloud.' });
+      EventBus.emit('edu:event', { text: 'Both atoms neutral — the universe can now build a gas cloud.' });
       EventBus.emit('scale:complete', { scale: SCALE_INDEX });
     }
   }
+
+  private showAtomDiscovery(key: 'H' | 'He'): void {
+    const info    = ATOM_DATA[key];
+    const modal   = document.getElementById('discovery-modal')!;
+    const card    = document.getElementById('discovery-card')!;
+    const badge   = document.getElementById('discovery-badge')!;
+    const symEl   = document.getElementById('discovery-symbol')!;
+
+    badge.textContent = 'ATOM NEUTRALISED';
+    badge.className = '';
+
+    const r = (info.accentColor >> 16) & 0xff;
+    const g = (info.accentColor >> 8) & 0xff;
+    const b = info.accentColor & 0xff;
+    card.style.boxShadow = `0 0 60px rgba(${r},${g},${b},0.35), 0 0 0 1px rgba(${r},${g},${b},0.2)`;
+    card.style.borderColor = `rgba(${r},${g},${b},0.3)`;
+
+    symEl.textContent = info.symbol;
+    symEl.style.color = `rgb(${r},${g},${b})`;
+    document.getElementById('discovery-name')!.textContent = info.name;
+    document.getElementById('discovery-quarks')!.textContent = `${info.protons}p · ${info.electrons}e⁻ · ${info.shell}`;
+    document.getElementById('discovery-charge')!.textContent = 'Charge: neutral (0)';
+    document.getElementById('discovery-mass')!.textContent = `Mass: ${info.mass}`;
+    document.getElementById('discovery-fact')!.textContent = info.fact;
+
+    modal.classList.add('visible');
+    modal.setAttribute('aria-hidden', 'false');
+
+    const close = document.getElementById('discovery-close')!;
+    const dismiss = () => {
+      modal.classList.remove('visible');
+      modal.setAttribute('aria-hidden', 'true');
+      close.onclick = null;
+    };
+    close.onclick = dismiss;
+  }
+
 }
 
 function createOrbitalRing(radius: number, n: number): OrbitalRing {
