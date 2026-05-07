@@ -72,6 +72,8 @@ const NUCLEUS_DATA: Record<string, NucleusInfo> = {
 const NUCLEUS_TARGET_SIZES = [2, 3, 4, 6, 7, 8, 12] as const;
 const SCALE_INDEX = 1;
 const MAX_NUCLEONS = 24;
+const BOND_RANGE = 2.5;   // units within which nucleons attract each other
+const MAX_HINT_LABELS = 4; // max simultaneous forming-nucleus labels
 
 export class Scale2Nuclear implements IScale {
   readonly name = 'Scale 2 — Nuclear';
@@ -86,6 +88,18 @@ export class Scale2Nuclear implements IScale {
   private heliumPhase = 0;
   private discoveredNuclei = new Set<string>();
 
+  // Bond line visuals
+  private bondGeo: THREE.BufferGeometry | null = null;
+  private bondMat: THREE.LineBasicMaterial | null = null;
+  private bondLines: THREE.LineSegments | null = null;
+  private bondPosArr: Float32Array = new Float32Array(0);
+  private bondColArr: Float32Array = new Float32Array(0);
+
+  // Forming-nucleus label sprites
+  private hintSprites: THREE.Sprite[] = [];
+  private hintTextures: THREE.CanvasTexture[] = [];
+  private hintCanvases: HTMLCanvasElement[] = [];
+
   init(_container: HTMLElement, renderer: THREE.WebGLRenderer): void {
     this.renderer = renderer;
     this.scene = new THREE.Scene();
@@ -98,6 +112,7 @@ export class Scale2Nuclear implements IScale {
     this.heliumCenter.set(0, 0);
     this.heliumPhase = 0;
     this.discoveredNuclei.clear();
+    this.initBondVisuals();
     this.spawnNucleon('proton', -1.6, 0.3);
     this.spawnNucleon('neutron', 1.6, -0.3);
     this.setupActionBar();
@@ -110,6 +125,24 @@ export class Scale2Nuclear implements IScale {
     document.getElementById('discovery-close')!.onclick = null;
     document.getElementById('discovery-modal')!.classList.remove('visible');
     document.getElementById('discovery-modal')!.setAttribute('aria-hidden', 'true');
+    // Clean up bond line resources
+    if (this.bondLines) {
+      this.scene.remove(this.bondLines);
+      this.bondGeo?.dispose();
+      this.bondMat?.dispose();
+      this.bondLines = null;
+      this.bondGeo = null;
+      this.bondMat = null;
+    }
+    // Clean up forming label sprites
+    for (let i = 0; i < this.hintSprites.length; i++) {
+      this.scene.remove(this.hintSprites[i]);
+      this.hintTextures[i].dispose();
+      (this.hintSprites[i].material as THREE.SpriteMaterial).dispose();
+    }
+    this.hintSprites = [];
+    this.hintTextures = [];
+    this.hintCanvases = [];
     this.scene.clear();
     this.nucleons = [];
     this.renderer = null;
@@ -121,6 +154,7 @@ export class Scale2Nuclear implements IScale {
     }
     const step = Math.min(dt, 0.033);
     this.integrate(step);
+    this.updateBondVisuals();
     this.detectMilestones();
     this.renderer.render(this.scene, this.camera);
   }
@@ -133,6 +167,175 @@ export class Scale2Nuclear implements IScale {
     this.camera.bottom = -8;
     this.camera.position.set(0, 0, 10);
     this.camera.updateProjectionMatrix();
+  }
+
+  private initBondVisuals(): void {
+    const maxPairs = (MAX_NUCLEONS * (MAX_NUCLEONS - 1)) / 2;
+    this.bondPosArr = new Float32Array(maxPairs * 6); // 2 endpoints × 3 coords
+    this.bondColArr = new Float32Array(maxPairs * 6);
+    this.bondGeo = new THREE.BufferGeometry();
+    this.bondGeo.setAttribute('position', new THREE.BufferAttribute(this.bondPosArr, 3));
+    this.bondGeo.setAttribute('color', new THREE.BufferAttribute(this.bondColArr, 3));
+    this.bondMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthTest: false });
+    this.bondLines = new THREE.LineSegments(this.bondGeo, this.bondMat);
+    this.bondLines.renderOrder = 2;
+    this.scene.add(this.bondLines);
+
+    this.hintSprites = [];
+    this.hintTextures = [];
+    this.hintCanvases = [];
+    for (let i = 0; i < MAX_HINT_LABELS; i++) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 220;
+      canvas.height = 50;
+      const texture = new THREE.CanvasTexture(canvas);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+      sprite.scale.set(0, 0, 1); // hidden until needed
+      sprite.renderOrder = 3;
+      this.scene.add(sprite);
+      this.hintSprites.push(sprite);
+      this.hintTextures.push(texture);
+      this.hintCanvases.push(canvas);
+    }
+  }
+
+  private updateBondVisuals(): void {
+    if (!this.bondGeo) {
+      return;
+    }
+
+    // Reset free nucleon glow before recalculating
+    for (const n of this.nucleons) {
+      if (!n.locked) {
+        (n.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.7;
+      }
+    }
+
+    let bondCount = 0;
+    for (let i = 0; i < this.nucleons.length; i++) {
+      for (let j = i + 1; j < this.nucleons.length; j++) {
+        const a = this.nucleons[i];
+        const b = this.nucleons[j];
+        const dist = a.position.distanceTo(b.position);
+        if (dist > BOND_RANGE) {
+          continue;
+        }
+        const t = 1 - dist / BOND_RANGE; // 0→1, closer = stronger
+        // p-n: cyan (strongest attraction), p-p: orange (Coulomb competes), n-n: blue-gray
+        let r: number;
+        let g: number;
+        let bl: number;
+        if (a.kind !== b.kind) {
+          [r, g, bl] = [0.2, 0.9, 1.0];
+        } else if (a.kind === 'proton') {
+          [r, g, bl] = [1.0, 0.55, 0.1];
+        } else {
+          [r, g, bl] = [0.45, 0.62, 0.88];
+        }
+        const alpha = 0.12 + 0.65 * t * t;
+        const base = bondCount * 6;
+        this.bondPosArr[base]     = a.position.x;
+        this.bondPosArr[base + 1] = a.position.y;
+        this.bondPosArr[base + 2] = 0.1;
+        this.bondPosArr[base + 3] = b.position.x;
+        this.bondPosArr[base + 4] = b.position.y;
+        this.bondPosArr[base + 5] = 0.1;
+        this.bondColArr[base]     = r * alpha;
+        this.bondColArr[base + 1] = g * alpha;
+        this.bondColArr[base + 2] = bl * alpha;
+        this.bondColArr[base + 3] = r * alpha;
+        this.bondColArr[base + 4] = g * alpha;
+        this.bondColArr[base + 5] = bl * alpha;
+        bondCount++;
+
+        // Glow boost proportional to bond strength
+        if (!a.locked) {
+          const mat = a.mesh.material as THREE.MeshStandardMaterial;
+          mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 0.7 + 0.85 * t);
+        }
+        if (!b.locked) {
+          const mat = b.mesh.material as THREE.MeshStandardMaterial;
+          mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 0.7 + 0.85 * t);
+        }
+      }
+    }
+
+    this.bondGeo.setDrawRange(0, bondCount * 2);
+    (this.bondGeo.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+    (this.bondGeo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
+
+    // Forming-nucleus labels: find connected clusters, match to known nuclei
+    const clusters = this.buildClusters();
+    let spriteIdx = 0;
+    for (const cluster of clusters) {
+      if (spriteIdx >= MAX_HINT_LABELS) {
+        break;
+      }
+      if (cluster.some((n) => n.locked)) {
+        continue; // already a completed nucleus
+      }
+      const protons = cluster.filter((n) => n.kind === 'proton').length;
+      const neutrons = cluster.length - protons;
+      const key = `${protons}p${neutrons}n`;
+      const info = NUCLEUS_DATA[key];
+      if (!info) {
+        continue;
+      }
+
+      const centroid = cluster
+        .reduce((acc, n) => acc.add(n.position), new THREE.Vector2())
+        .multiplyScalar(1 / cluster.length);
+
+      const canvas = this.hintCanvases[spriteIdx];
+      const ctx = canvas.getContext('2d')!;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(8, 16, 36, 0.82)';
+      ctx.beginPath();
+      ctx.roundRect(2, 2, canvas.width - 4, canvas.height - 4, 9);
+      ctx.fill();
+      ctx.font = 'bold 20px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = info.isEasterEgg ? '#f0abfc' : '#7dd3fc';
+      ctx.fillText(`→ ${info.symbol} ${info.name}`, canvas.width / 2, canvas.height / 2);
+      this.hintTextures[spriteIdx].needsUpdate = true;
+
+      const sprite = this.hintSprites[spriteIdx];
+      sprite.scale.set(2.8, 0.64, 1);
+      sprite.position.set(centroid.x, centroid.y + 1.0, 0.3);
+      spriteIdx++;
+    }
+    // Hide any unused sprites
+    for (let i = spriteIdx; i < MAX_HINT_LABELS; i++) {
+      this.hintSprites[i].scale.set(0, 0, 1);
+    }
+  }
+
+  private buildClusters(): Nucleon[][] {
+    const visited = new Set<number>();
+    const clusters: Nucleon[][] = [];
+    for (let i = 0; i < this.nucleons.length; i++) {
+      if (visited.has(i)) {
+        continue;
+      }
+      const cluster: Nucleon[] = [];
+      const queue = [i];
+      visited.add(i);
+      while (queue.length > 0) {
+        const idx = queue.shift()!;
+        cluster.push(this.nucleons[idx]);
+        for (let j = 0; j < this.nucleons.length; j++) {
+          if (!visited.has(j) && this.nucleons[idx].position.distanceTo(this.nucleons[j].position) <= BOND_RANGE) {
+            visited.add(j);
+            queue.push(j);
+          }
+        }
+      }
+      if (cluster.length >= 2) {
+        clusters.push(cluster);
+      }
+    }
+    return clusters;
   }
 
   private emitEducation(): void {
