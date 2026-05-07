@@ -24,6 +24,7 @@ interface NucleusObj {
   group: THREE.Group;
   orbitals: OrbitalRing[];
   assignedElectrons: number;
+  velocity: THREE.Vector2;
 }
 
 interface ElectronObj {
@@ -93,7 +94,7 @@ export class Scale3Atomic implements IScale {
   readonly scaleLabel = '10⁻¹⁰ m';
 
   private scene    = new THREE.Scene();
-  private camera   = new THREE.OrthographicCamera(-14, 14, 8, -8, 0.1, 60);
+  private camera   = new THREE.OrthographicCamera(-14.2, 14.2, 8, -8, 0.1, 60);
   private renderer: THREE.WebGLRenderer | null = null;
 
   private nuclei:    NucleusObj[]  = [];
@@ -156,7 +157,16 @@ export class Scale3Atomic implements IScale {
     if (!this.renderer) return;
     const step = Math.min(dt, 0.033);
 
+    const bx = Math.abs(this.camera.right) - 2.5;
+    const by = Math.abs(this.camera.top)   - 2.5;
     this.nuclei.forEach(n => {
+      // Drift
+      n.position.x += n.velocity.x * step;
+      n.position.y += n.velocity.y * step;
+      if (Math.abs(n.position.x) > bx) { n.velocity.x *= -1; n.position.x = Math.sign(n.position.x) * bx; }
+      if (Math.abs(n.position.y) > by) { n.velocity.y *= -1; n.position.y = Math.sign(n.position.y) * by; }
+      n.group.position.set(n.position.x, n.position.y, 0);
+
       n.orbitals.forEach((r, i) => { r.uniforms.time.value += step * (1 + i * 0.2); });
     });
 
@@ -198,21 +208,25 @@ export class Scale3Atomic implements IScale {
     group.position.copy(pos);
     this.scene.add(group);
 
-    // Label sprite (symbol + Z number)
+    // Label sprite attached to group — moves with nucleus automatically
     const label = makeLabelSprite(info.symbol, info.Z, info.color);
-    label.position.set(pos.x + r + 0.8, pos.y + r + 0.5, 0.1);
-    this.scene.add(label);
+    label.position.set(r + 0.8, r + 0.5, 0.1);
+    group.add(label);
 
-    // Orbital rings — lie flat in XY plane (no rotation) → appear as circles from Z camera
+    // Orbital rings attached to group — centred at origin relative to group
     const orbitals: OrbitalRing[] = info.shells.map((_, i) => {
       const ring = createOrbitalRing(SHELL_RADII[i], i + 1, info.color);
-      ring.mesh.position.copy(pos);
-      // No ring.mesh.rotation — default torus lies in XY plane, visible as a circle ✓
-      this.scene.add(ring.mesh);
+      ring.mesh.position.set(0, 0, 0);
+      group.add(ring.mesh);
       return ring;
     });
 
-    const nucleus: NucleusObj = { Z, position: pos, group, orbitals, assignedElectrons: 0 };
+    // Slow random drift
+    const driftAngle = Math.random() * Math.PI * 2;
+    const driftSpeed = 0.35 + Math.random() * 0.3;
+    const velocity   = new THREE.Vector2(Math.cos(driftAngle) * driftSpeed, Math.sin(driftAngle) * driftSpeed);
+
+    const nucleus: NucleusObj = { Z, position: pos, group, orbitals, assignedElectrons: 0, velocity };
     this.nuclei.push(nucleus);
     return true;
   }
@@ -225,8 +239,8 @@ export class Scale3Atomic implements IScale {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndcX = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
     const ndcY = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
-    // Orthographic camera centred at origin with half-extents 14 (x) and 8 (y)
-    this.fireElectron(ndcX * 14, ndcY * 8);
+    // Use camera frustum extents for correct world-space mapping
+    this.fireElectron(ndcX * this.camera.right, ndcY * this.camera.top);
   }
 
   private fireElectron(x: number, y: number): void {
@@ -479,8 +493,8 @@ export class Scale3Atomic implements IScale {
 
   onResize(width: number, height: number): void {
     const aspect = width / height;
-    this.camera.left   = -14 * aspect;
-    this.camera.right  =  14 * aspect;
+    this.camera.left   = -8 * aspect;
+    this.camera.right  =  8 * aspect;
     this.camera.top    =  8;
     this.camera.bottom = -8;
     this.camera.updateProjectionMatrix();
