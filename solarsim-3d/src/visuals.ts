@@ -178,31 +178,96 @@ export function applyStarVisuals(body: Body, scene: THREE.Scene) {
   mat.emissiveIntensity = 0.6;
 }
 
-/** Space-time distortion grid: flat wireframe plane deformed by gravity */
+/** 3D spacetime lattice — grid lines displace toward massive bodies showing space compression */
 export function createGravityGrid(scene: THREE.Scene) {
-  const SEG = 60, SIZE = 700;
-  const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
-  geo.rotateX(-Math.PI / 2);
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.25, depthWrite: false,
+  const N = 16;       // points per axis
+  const HALF = 260;   // half-span in scene units
+  const step = (2 * HALF) / (N - 1);
+  const TOTAL = N * N * N;
+
+  // Original lattice positions (flat arrays for performance)
+  const origX = new Float32Array(TOTAL);
+  const origY = new Float32Array(TOTAL);
+  const origZ = new Float32Array(TOTAL);
+  for (let ix = 0; ix < N; ix++)
+    for (let iy = 0; iy < N; iy++)
+      for (let iz = 0; iz < N; iz++) {
+        const i = ix * N * N + iy * N + iz;
+        origX[i] = -HALF + ix * step;
+        origY[i] = -HALF + iy * step;
+        origZ[i] = -HALF + iz * step;
+      }
+
+  // Build list of line segment endpoint index pairs (one per adjacent pair)
+  const seg: number[] = [];
+  const I = (ix: number, iy: number, iz: number) => ix * N * N + iy * N + iz;
+  for (let ix = 0; ix < N; ix++)
+    for (let iy = 0; iy < N; iy++)
+      for (let iz = 0; iz < N; iz++) {
+        if (ix < N - 1) seg.push(I(ix, iy, iz), I(ix + 1, iy, iz));
+        if (iy < N - 1) seg.push(I(ix, iy, iz), I(ix, iy + 1, iz));
+        if (iz < N - 1) seg.push(I(ix, iy, iz), I(ix, iy, iz + 1));
+      }
+
+  // GPU buffers: positions and per-vertex colors
+  const positions = new Float32Array(seg.length * 3);
+  const colors    = new Float32Array(seg.length * 3);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(colors,    3));
+
+  const mat = new THREE.LineBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false,
   });
-  const mesh = new THREE.Mesh(geo, mat);
+
+  const mesh = new THREE.LineSegments(geo, mat);
   mesh.visible = false;
   scene.add(mesh);
 
+  // Reusable displaced position buffers
+  const dispX = new Float32Array(TOTAL);
+  const dispY = new Float32Array(TOTAL);
+  const dispZ = new Float32Array(TOTAL);
+  const disp  = new Float32Array(TOTAL); // displacement magnitude for coloring
+
   function update(bodies: Body[]) {
-    const pos = geo.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const wx = pos.getX(i), wz = pos.getZ(i);
-      let phi = 0;
+    const K = 120; // visualization pull strength (scene units)
+
+    for (let i = 0; i < TOTAL; i++) {
+      const ox = origX[i], oy = origY[i], oz = origZ[i];
+      let dx = 0, dy = 0, dz = 0;
       for (const b of bodies) {
-        const dx = wx - b.mesh.position.x, dz = wz - b.mesh.position.z;
-        const dist = Math.sqrt(dx * dx + dz * dz);
-        phi -= 2000 * Math.pow(b.mass / 2e30, 0.3) / Math.max(dist, b.drawRadius * 2);
+        const rx = b.mesh.position.x - ox;
+        const ry = b.mesh.position.y - oy;
+        const rz = b.mesh.position.z - oz;
+        const dist = Math.sqrt(rx * rx + ry * ry + rz * rz);
+        if (dist < 0.1) continue;
+        const massFrac = Math.pow(b.mass / 2e30, 0.4);
+        const pull = Math.min(K * massFrac / Math.max(dist, b.drawRadius * 3), dist * 0.82);
+        const inv = pull / dist;
+        dx += rx * inv;
+        dy += ry * inv;
+        dz += rz * inv;
       }
-      pos.setY(i, Math.max(phi, -50));
+      dispX[i] = ox + dx;
+      dispY[i] = oy + dy;
+      dispZ[i] = oz + dz;
+      disp[i]  = Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
-    pos.needsUpdate = true;
+
+    // Write segment endpoints + colors to GPU buffers
+    const posAttr = geo.attributes.position as THREE.BufferAttribute;
+    const colAttr = geo.attributes.color    as THREE.BufferAttribute;
+    for (let s = 0; s < seg.length; s++) {
+      const p = seg[s];
+      posAttr.setXYZ(s, dispX[p], dispY[p], dispZ[p]);
+      // Color: dim blue far → bright cyan/white near mass
+      const t = Math.min(disp[p] / 30, 1); // 0 = undisturbed, 1 = strongly pulled
+      colAttr.setXYZ(s, t * 0.6, 0.15 + t * 0.65, 0.4 + t * 0.6);
+    }
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
   }
 
   return { mesh, update };
