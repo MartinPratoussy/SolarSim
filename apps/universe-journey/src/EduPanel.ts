@@ -1,4 +1,6 @@
 import { EventBus } from './EventBus';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 export class EduPanel {
   private readonly title = document.getElementById('edu-title') as HTMLHeadingElement;
@@ -16,7 +18,9 @@ export class EduPanel {
     EventBus.on('edu:update', ({ title, body, equation, hint }) => {
       this.title.textContent = title;
       this.body.innerHTML = body;
-      this.equation.textContent = equation ?? '';
+      this.equation.innerHTML = equation
+        ? katex.renderToString(equation, { displayMode: true, throwOnError: false, output: 'html' })
+        : '';
       this.equation.style.display = equation ? 'block' : 'none';
       this.hint.textContent = hint ?? '';
       this.hint.style.display = hint ? 'block' : 'none';
