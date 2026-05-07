@@ -134,7 +134,7 @@ V(r) = −(4αs/3r) + κr
 
 Proton mass: 938.3 MeV/c²
 (mostly from binding energy, not quark masses!)`,
-      hint: '👆 Click the buttons below to spawn quarks. Watch them seek colour-neutral combinations!',
+      hint: '👆 Spawn quarks below. 3 quarks close together automatically bind — gluons resolve their colour charges in real time.',
     });
     EventBus.emit('edu:event', { text: 'Spawn quarks and let confinement weave them into hadrons.' });
   }
@@ -264,10 +264,18 @@ Proton mass: 938.3 MeV/c²
         const delta = b.position.clone().sub(a.position);
         const dist = Math.max(delta.length(), 0.35);
         const dir = delta.normalize();
-        let strength = a.colorCharge === b.colorCharge ? -1.25 / (dist * dist + 0.3) : 1.35 / (dist * dist + 0.25);
+        // Cornell-inspired: all free quarks attract each other (colour-averaged),
+        // same-colour pairs slightly less attractive (gluon exchange not yet complete).
+        // Positive strength = attraction toward each other.
+        const sameColor = a.colorCharge === b.colorCharge;
+        let strength = sameColor
+          ? 0.55 / (dist * dist + 0.3)    // same colour: weak attraction
+          : 1.35 / (dist * dist + 0.25);  // different colour: strong attraction
+        // String tension: restoring force at long range (confinement)
         if (dist > CONFINE_RADIUS * 1.8) {
           strength += 0.8 * (dist - CONFINE_RADIUS * 1.8);
         }
+        // Short-range hard core repulsion
         if (dist < 0.7) {
           strength -= 0.5;
         }
@@ -285,14 +293,19 @@ Proton mass: 938.3 MeV/c²
       for (let j = i + 1; j < free.length; j += 1) {
         for (let k = j + 1; k < free.length; k += 1) {
           const trio = [free[i], free[j], free[k]];
-          const colors = new Set(trio.map((quark) => quark.colorCharge));
-          if (colors.size !== 3) {
-            continue;
-          }
-          const centroid = trio.reduce((acc, quark) => acc.add(quark.position), new THREE.Vector2()).multiplyScalar(1 / 3);
+          const centroid = trio
+            .reduce((acc, quark) => acc.add(quark.position), new THREE.Vector2())
+            .multiplyScalar(1 / 3);
+          // Proximity check — all three must be close enough
           if (trio.some((quark) => quark.position.distanceTo(centroid) > CONFINE_RADIUS)) {
             continue;
           }
+          // Gluons exchange colour — reassign R/G/B to make the trio colour-neutral.
+          // This is physically correct: gluons continuously change quark colour charges.
+          const shuffled = (['R', 'G', 'B'] as ColorCharge[]).sort(() => Math.random() - 0.5);
+          trio.forEach((quark, idx) => {
+            quark.colorCharge = shuffled[idx];
+          });
           this.formHadron(trio, centroid);
           return;
         }
