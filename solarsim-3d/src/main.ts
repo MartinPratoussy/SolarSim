@@ -4,7 +4,11 @@ import { Body, keplerVelocity, metersToScene, type BodyType } from './Body';
 import { SolarSystem } from './SolarSystem';
 import { SOLAR_DATA, initialPosition } from './solarData';
 import { BASE_TIMESTEP } from './constants';
-import { createStarfield, createSunGlow } from './visuals';
+import {
+  createStarfield, createSunGlow,
+  applyPlanetTexture, addAtmosphere, addSaturnRing,
+  buildBlackHoleVisuals, spaghettify, spawnGravWaveRing,
+} from './visuals';
 import { updateInfoPanel, showTooltip, hideTooltip } from './ui';
 import { EventBus } from './events';
 
@@ -47,8 +51,9 @@ const sun = new Body({
   position: new THREE.Vector3(0, 0, 0),
   velocity: new THREE.Vector3(0, 0, 0),
 }, scene);
+applyPlanetTexture(sun, SOLAR_DATA.sun.texture);
 (sun.mesh.material as THREE.MeshStandardMaterial).emissive = new THREE.Color(0xfff5c0);
-(sun.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 1;
+(sun.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.6;
 solar.add(sun);
 createSunGlow(scene, sun.position, sun.drawRadius);
 
@@ -65,6 +70,10 @@ for (const pd of SOLAR_DATA.planets) {
     position: pos,
     velocity: vel,
   }, scene);
+  applyPlanetTexture(planet, pd.texture);
+  planet.mesh.rotation.z = pd.axialTilt;
+  if (pd.atmosphere) addAtmosphere(planet, pd.atmosphere);
+  if (pd.hasRing) addSaturnRing(planet);
   solar.add(planet);
 }
 
@@ -113,7 +122,7 @@ scaleToggle.addEventListener('click', () => {
   }
 });
 
-// ── Click: select or place ─────────────────────────────────────────────────
+// ── Click: select or place ────────────────────────────────────────────────
 renderer.domElement.addEventListener('click', (e) => {
   mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -124,14 +133,12 @@ renderer.domElement.addEventListener('click', (e) => {
     return;
   }
 
-  const meshes = solar.bodies.map(b => b.mesh);
-  const hits = raycaster.intersectObjects(meshes);
+  const hits = raycaster.intersectObjects(solar.bodies.map(b => b.mesh));
   if (hits.length > 0) {
     const body = hits[0].object.userData.body as Body;
     selectedBody = body;
     followMode = false;
-    const star = solar.findStar();
-    updateInfoPanel(body, star?.mass ?? 0);
+    updateInfoPanel(body, solar.findStar()?.mass ?? 0);
     EventBus.emit('select:body', { body });
   } else {
     selectedBody = null;
@@ -162,18 +169,13 @@ renderer.domElement.addEventListener('mousemove', (e) => {
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
   const hits = raycaster.intersectObjects(solar.bodies.map(b => b.mesh));
-  if (hits.length > 0) {
-    showTooltip(hits[0].object.userData.body as Body, e.clientX, e.clientY);
-  } else {
-    hideTooltip();
-  }
+  if (hits.length > 0) showTooltip(hits[0].object.userData.body as Body, e.clientX, e.clientY);
+  else hideTooltip();
 });
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'f' || e.key === 'F') {
-    followMode = selectedBody !== null && !followMode;
-  }
+  if (e.key === 'f' || e.key === 'F') followMode = selectedBody !== null && !followMode;
   if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBody && selectedBody.type !== 'star') {
     solar.remove(selectedBody);
     selectedBody = null;
@@ -213,8 +215,7 @@ function placeBody(screenX: number, screenY: number) {
   const star = solar.findStar();
   let vel = new THREE.Vector3();
   if (star && type !== 'star' && type !== 'blackhole' && type !== 'asteroid') {
-    const relPos = worldPos.clone().sub(star.position);
-    vel = keplerVelocity(relPos, star.mass);
+    vel = keplerVelocity(worldPos.clone().sub(star.position), star.mass);
     vel.add(star.velocity);
   }
 
@@ -225,9 +226,13 @@ function placeBody(screenX: number, screenY: number) {
     position: worldPos,
     velocity: vel,
   }, scene);
-  solar.add(body);
 
-  if (type === 'blackhole') EventBus.emit('edu:blackhole', {});
+  if (type === 'blackhole') {
+    buildBlackHoleVisuals(body);
+    EventBus.emit('edu:blackhole', {});
+  }
+
+  solar.add(body);
 }
 
 // ── Time display ──────────────────────────────────────────────────────────
@@ -253,21 +258,50 @@ function animate() {
     simulatedDays += dt / 86400;
   }
 
+  // Planet self-rotation
+  for (const body of solar.bodies) {
+    if (body.type === 'planet' || body.type === 'star') {
+      body.mesh.rotation.y += 0.002;
+    }
+  }
+
+  // Spaghettification near black holes
+  const blackholes = solar.bodies.filter(b => b.type === 'blackhole');
+  if (blackholes.length > 0) {
+    const toRemove: Body[] = [];
+    for (const body of solar.bodies) {
+      if (body.type === 'blackhole' || body.type === 'star') continue;
+      for (const bh of blackholes) {
+        if (spaghettify(body, bh)) {
+          toRemove.push(body);
+          break;
+        }
+      }
+    }
+    for (const b of toRemove) solar.remove(b);
+
+    // Check black hole mergers
+    for (let i = 0; i < blackholes.length; i++) {
+      for (let j = i + 1; j < blackholes.length; j++) {
+        const bh1 = blackholes[i], bh2 = blackholes[j];
+        if (bh1.position.distanceTo(bh2.position) < bh1.drawRadius + bh2.drawRadius) {
+          const totalMass = bh1.mass + bh2.mass;
+          bh1.velocity.multiplyScalar(bh1.mass / totalMass).addScaledVector(bh2.velocity, bh2.mass / totalMass);
+          bh1.mass = totalMass;
+          bh1.drawRadius = Math.pow(Math.pow(bh1.drawRadius, 3) + Math.pow(bh2.drawRadius, 3), 1/3);
+          spawnGravWaveRing(scene, bh1.position.clone());
+          solar.remove(bh2);
+        }
+      }
+    }
+  }
+
   sunLight.position.copy(sun.position);
-
-  if (followMode && selectedBody) {
-    controls.target.copy(selectedBody.mesh.position);
-  }
-
-  if (selectedBody) {
-    const star = solar.findStar();
-    updateInfoPanel(selectedBody, star?.mass ?? 0);
-  }
+  if (followMode && selectedBody) controls.target.copy(selectedBody.mesh.position);
+  if (selectedBody) updateInfoPanel(selectedBody, solar.findStar()?.mass ?? 0);
 
   const d = Math.floor(simulatedDays);
-  timeDisplay.textContent = d < 730
-    ? `Day ${d.toLocaleString()}`
-    : `Year ${(d / 365.25).toFixed(1)}`;
+  timeDisplay.textContent = d < 730 ? `Day ${d.toLocaleString()}` : `Year ${(d / 365.25).toFixed(1)}`;
 
   controls.update();
   renderer.render(scene, camera);

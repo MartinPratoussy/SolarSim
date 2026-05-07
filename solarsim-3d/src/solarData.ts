@@ -7,11 +7,15 @@ export interface PlanetData {
   name: string;
   mass: number;
   realRadius: number;
-  semiMajorAxis: number;   // meters
+  semiMajorAxis: number;
   eccentricity: number;
   inclination: number;     // radians
   color: number;
-  drawRadius: number;      // artistic scene units
+  drawRadius: number;
+  texture: string;
+  axialTilt: number;       // radians
+  atmosphere?: THREE.Color;
+  hasRing?: boolean;
 }
 
 export const SOLAR_DATA = {
@@ -21,6 +25,7 @@ export const SOLAR_DATA = {
     realRadius: 6.957e8,
     color: 0xFFF5C0,
     drawRadius: 5,
+    texture: 'sun.jpg',
   },
 
   planets: [
@@ -30,9 +35,11 @@ export const SOLAR_DATA = {
       realRadius: 2.44e6,
       semiMajorAxis: 0.387 * AU,
       eccentricity: 0.206,
-      inclination: 0.122, // rad
+      inclination: 0.122,
       color: 0xb5b5b5,
       drawRadius: 0.5,
+      texture: 'mercury.jpg',
+      axialTilt: 0.001,
     },
     {
       name: 'Venus',
@@ -43,6 +50,9 @@ export const SOLAR_DATA = {
       inclination: 0.059,
       color: 0xe8cda0,
       drawRadius: 0.9,
+      texture: 'venus.jpg',
+      axialTilt: 3.096,
+      atmosphere: new THREE.Color(0xffcc66),
     },
     {
       name: 'Earth',
@@ -53,6 +63,9 @@ export const SOLAR_DATA = {
       inclination: 0.0,
       color: 0x4fa3e0,
       drawRadius: 1.0,
+      texture: 'earth.jpg',
+      axialTilt: 0.409,
+      atmosphere: new THREE.Color(0x4488ff),
     },
     {
       name: 'Mars',
@@ -63,6 +76,9 @@ export const SOLAR_DATA = {
       inclination: 0.032,
       color: 0xc1440e,
       drawRadius: 0.7,
+      texture: 'mars.jpg',
+      axialTilt: 0.440,
+      atmosphere: new THREE.Color(0xff8855),
     },
     {
       name: 'Jupiter',
@@ -73,6 +89,9 @@ export const SOLAR_DATA = {
       inclination: 0.023,
       color: 0xc88b3a,
       drawRadius: 3.5,
+      texture: 'jupiter.jpg',
+      axialTilt: 0.054,
+      atmosphere: new THREE.Color(0xcc9966),
     },
     {
       name: 'Saturn',
@@ -83,6 +102,9 @@ export const SOLAR_DATA = {
       inclination: 0.043,
       color: 0xe4d191,
       drawRadius: 2.8,
+      texture: 'saturn.jpg',
+      axialTilt: 0.466,
+      hasRing: true,
     },
     {
       name: 'Uranus',
@@ -93,6 +115,9 @@ export const SOLAR_DATA = {
       inclination: 0.013,
       color: 0x7de8e8,
       drawRadius: 1.8,
+      texture: 'uranus.jpg',
+      axialTilt: 1.706,
+      atmosphere: new THREE.Color(0x55ddcc),
     },
     {
       name: 'Neptune',
@@ -103,15 +128,16 @@ export const SOLAR_DATA = {
       inclination: 0.031,
       color: 0x3f54ba,
       drawRadius: 1.7,
+      texture: 'neptune.jpg',
+      axialTilt: 0.494,
+      atmosphere: new THREE.Color(0x3355ff),
     },
   ] as PlanetData[],
 };
 
-/** Build a THREE.Vector3 position at perihelion for a given planet */
 export function initialPosition(planet: PlanetData): THREE.Vector3 {
   const r = planet.semiMajorAxis * (1 - planet.eccentricity);
   const sceneR = metersToScene(r);
-  // Place in XZ plane, tilted by inclination
   return new THREE.Vector3(
     sceneR,
     sceneR * Math.sin(planet.inclination),
