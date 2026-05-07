@@ -29,7 +29,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.06;
 controls.minDistance = 5;
 controls.maxDistance = 8000;
-controls.addEventListener('start', () => { flyState = null; }); // cancel fly on drag
+controls.addEventListener('start', () => { flyState = null; followMode = false; }); // cancel fly+follow on drag
 
 // ── Lights ────────────────────────────────────────────────────────────────
 // No decay so all planets are visibly illuminated regardless of distance
@@ -108,8 +108,11 @@ let artisticScale = true;
 let simulatedDays = 0;
 
 // Camera fly-to animation
-interface FlyState { targetEnd: THREE.Vector3; camEnd: THREE.Vector3; targetStart: THREE.Vector3; camStart: THREE.Vector3; t: number; }
+interface FlyState { targetEnd: THREE.Vector3; camEnd: THREE.Vector3; targetStart: THREE.Vector3; camStart: THREE.Vector3; t: number; followOnLand: boolean; }
 let flyState: FlyState | null = null;
+
+// Camera follow — tracks body delta each frame
+let followedBodyLastPos = new THREE.Vector3();
 
 // ── Raycaster (kept for right-click delete) ───────────────────────────────
 const raycaster = new THREE.Raycaster();
@@ -174,16 +177,18 @@ renderer.domElement.addEventListener('click', (e) => {
   if (body) {
     selectedBody = body;
     followMode = false;
+    followedBodyLastPos.copy(body.mesh.position);
     updateInfoPanel(body, solar.findStar()?.mass ?? 0);
     EventBus.emit('select:body', { body });
   } else {
     selectedBody = null;
+    followMode = false;
     updateInfoPanel(null, 0);
     EventBus.emit('select:none', {});
   }
 });
 
-// ── Double-click: fly camera to body ─────────────────────────────────────
+// ── Double-click: fly camera to body and lock follow ────────────────────
 renderer.domElement.addEventListener('dblclick', (e) => {
   const body = nearestBodyToScreen(e.clientX, e.clientY, 60);
   if (!body) return;
@@ -197,6 +202,7 @@ renderer.domElement.addEventListener('dblclick', (e) => {
     camStart:    camera.position.clone(),
     targetEnd:   body.mesh.position.clone(),
     camEnd:      body.mesh.position.clone().addScaledVector(dir, zoom),
+    followOnLand: true,
     t: 0,
   };
 });
@@ -226,7 +232,10 @@ renderer.domElement.addEventListener('mousemove', (e) => {
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'f' || e.key === 'F') followMode = selectedBody !== null && !followMode;
+  if (e.key === 'f' || e.key === 'F') {
+    followMode = selectedBody !== null && !followMode;
+    if (followMode && selectedBody) followedBodyLastPos.copy(selectedBody.mesh.position);
+  }
   if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBody && selectedBody.type !== 'star') {
     solar.remove(selectedBody);
     selectedBody = null;
@@ -355,15 +364,32 @@ function animate() {
 
   // Camera fly-to animation (double-click focus)
   if (flyState) {
+    // Keep target/cam endpoints anchored to the moving body
+    if (selectedBody) {
+      const zoom = Math.max(selectedBody.drawRadius * 12, 18);
+      const dir = flyState.camEnd.clone().sub(flyState.targetEnd).normalize();
+      flyState.targetEnd.copy(selectedBody.mesh.position);
+      flyState.camEnd.copy(selectedBody.mesh.position).addScaledVector(dir, zoom);
+    }
     flyState.t = Math.min(flyState.t + delta * 1.8, 1); // ~0.55 s
     const k = flyState.t < 0.5
       ? 2 * flyState.t * flyState.t                       // ease-in
       : 1 - Math.pow(-2 * flyState.t + 2, 2) / 2;        // ease-out
     controls.target.lerpVectors(flyState.targetStart, flyState.targetEnd, k);
     camera.position.lerpVectors(flyState.camStart,    flyState.camEnd,    k);
-    if (flyState.t >= 1) flyState = null;
+    if (flyState.t >= 1) {
+      if (flyState.followOnLand && selectedBody) {
+        followMode = true;
+        followedBodyLastPos.copy(selectedBody.mesh.position);
+      }
+      flyState = null;
+    }
   } else if (followMode && selectedBody) {
-    controls.target.copy(selectedBody.mesh.position);
+    // Translate camera and orbit target by the body's movement delta this frame
+    const delta3 = selectedBody.mesh.position.clone().sub(followedBodyLastPos);
+    controls.target.add(delta3);
+    camera.position.add(delta3);
+    followedBodyLastPos.copy(selectedBody.mesh.position);
   }
   if (selectedBody) updateInfoPanel(selectedBody, solar.findStar()?.mass ?? 0);
 
