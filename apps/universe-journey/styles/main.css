@@ -174,6 +174,10 @@ button {
   background: rgba(99, 179, 255, 0.15);
 }
 
+#edu-mobile-toggle {
+  display: none;
+}
+
 #edu-title {
   font-size: 15px;
   font-weight: 700;
@@ -1123,6 +1127,25 @@ button {
 
   #edu-panel.collapsed {
     transform: translateX(min(86vw, 320px));
+  }
+
+  #edu-toggle-btn {
+    display: none;
+  }
+
+  #edu-mobile-toggle {
+    display: block;
+    position: fixed;
+    top: calc(54px + env(safe-area-inset-top));
+    right: 8px;
+    z-index: 12;
+    background: rgba(0, 20, 60, 0.9);
+    border: 1px solid rgba(99, 179, 255, 0.45);
+    color: #9ed5ff;
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 11px;
+    font-weight: 600;
   }
 
   #action-bar {

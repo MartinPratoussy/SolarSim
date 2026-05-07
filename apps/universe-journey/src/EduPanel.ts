@@ -17,20 +17,21 @@ export class EduPanel {
   private readonly progressContainer = document.getElementById('progress-bar-container') as HTMLDivElement;
   private readonly progressFill = document.getElementById('progress-fill') as HTMLDivElement;
   private readonly progressLabel = document.getElementById('progress-label') as HTMLSpanElement;
+  private readonly mobileToggle: HTMLButtonElement;
   private toastTimer: number | null = null;
 
   constructor() {
     // Panel collapse toggle
     const toggleBtn = document.getElementById('edu-toggle-btn') as HTMLButtonElement;
+    this.mobileToggle = document.createElement('button');
+    this.mobileToggle.id = 'edu-mobile-toggle';
+    this.mobileToggle.type = 'button';
+    document.body.appendChild(this.mobileToggle);
+
     const shouldStartCollapsed = window.matchMedia('(max-width: 920px)').matches;
-    if (shouldStartCollapsed) {
-      this.panel.classList.add('collapsed');
-      toggleBtn.textContent = '▶';
-    }
-    toggleBtn.addEventListener('click', () => {
-      const collapsed = this.panel.classList.toggle('collapsed');
-      toggleBtn.textContent = collapsed ? '▶' : '◀';
-    });
+    this.setCollapsed(shouldStartCollapsed, toggleBtn);
+    toggleBtn.addEventListener('click', () => this.setCollapsed(!this.panel.classList.contains('collapsed'), toggleBtn));
+    this.mobileToggle.addEventListener('click', () => this.setCollapsed(!this.panel.classList.contains('collapsed'), toggleBtn));
 
     EventBus.on('edu:update', ({ title, body, hint }) => {
       this.title.textContent = title;
@@ -59,6 +60,13 @@ export class EduPanel {
       this.progressFill.style.width = `${Math.round(value * 100)}%`;
       this.progressLabel.textContent = `${Math.round(value * 100)}%`;
     });
+  }
+
+  private setCollapsed(collapsed: boolean, toggleBtn: HTMLButtonElement): void {
+    this.panel.classList.toggle('collapsed', collapsed);
+    toggleBtn.textContent = collapsed ? '▶' : '◀';
+    this.mobileToggle.textContent = collapsed ? 'Show explanations' : 'Hide explanations';
+    this.mobileToggle.setAttribute('aria-pressed', (!collapsed).toString());
   }
 
   private showToast(title: string, body: string): void {
