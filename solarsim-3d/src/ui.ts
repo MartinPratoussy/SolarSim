@@ -77,8 +77,11 @@ function getEduInfo(body: Body): BodyEduInfo {
         edu: 'A black hole is a region of spacetime where gravity is so strong that nothing — not even light — can escape past the event horizon. Its radius is the Schwarzschild radius.',
         formula: 'r_s = 2GM / c²',
       };
-    default:
-      return { edu: 'A small fragment ejected during a collision.', formula: '' };
+    case 'debris':
+      return {
+        edu: 'A hot ejecta fragment from a high-velocity impact. Fragments with velocity below the target\'s escape velocity will orbit it and eventually re-impact or merge with other fragments — the building blocks of accretion.',
+        formula: 'v_orbit = √(GM / r)',
+      };
   }
 }
 
@@ -134,6 +137,22 @@ function showPopup(content: PopupContent, duration = 8000) {
   if (popupTimer) clearTimeout(popupTimer);
   popupTimer = setTimeout(() => { popup.style.display = 'none'; }, duration);
 }
+
+EventBus.on('edu:impact', ({ fragmentCount }) => {
+  showPopup({
+    title: '💥 Impact! Ejecta & Accretion',
+    body: `The collision launched ${fragmentCount} debris fragments. Fragments slower than the target's escape velocity stay in orbit and can accrete into a moon. This is how Earth's Moon formed — a Mars-sized body struck proto-Earth ~4.5 billion years ago.`,
+    formula: 'v_esc = √(2GM / r)  →  orbit if v_ejecta < v_esc',
+  }, 12000);
+});
+
+EventBus.on('edu:accretion', () => {
+  showPopup({
+    title: '🌑 Accretion! A New World Forms',
+    body: 'Debris fragments collided and merged, gaining enough mass to be promoted to a new body type. Over millions of years, repeated impacts like this built all the planets in the solar system from tiny rocky grains.',
+    formula: 'R_merged = ∛(R₁³ + R₂³)',
+  }, 10000);
+});
 
 EventBus.on('edu:collision', () => {
   showPopup({

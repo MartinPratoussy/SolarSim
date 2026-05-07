@@ -3,6 +3,8 @@ type EventMap = {
   'edu:ejected': { body: unknown };
   'edu:blackhole': Record<string, never>;
   'edu:tidalforce': Record<string, never>;
+  'edu:impact': { target: unknown; fragmentCount: number };
+  'edu:accretion': { body: unknown };
   'select:body': { body: unknown };
   'select:none': Record<string, never>;
 };

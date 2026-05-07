@@ -4,7 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Body, keplerVelocity, metersToScene, type BodyType } from './Body';
-import { SolarSystem } from './SolarSystem';
+import { SolarSystem, escapeVelocity } from './SolarSystem';
 import { SOLAR_DATA, initialPosition } from './solarData';
 import { BASE_TIMESTEP, AU, DAY } from './constants';
 import {
@@ -116,7 +116,9 @@ for (const pd of SOLAR_DATA.planets) {
 // Initial mesh sync so bodies appear at correct scene positions on frame 0
 for (const b of solar.bodies) b.syncMesh();
 
-// ── State ─────────────────────────────────────────────────────────────────
+// Wire up debris spawning — set after solar is built so spawnImpactDebris can reference it
+// (assignment happens below once the function is defined)
+
 let speedMultiplier = 1;
 let selectedBody: Body | null = null;
 let placingType: BodyType | 'none' = 'none';
@@ -130,6 +132,105 @@ let flyState: FlyState | null = null;
 
 // Camera follow — tracks body delta each frame
 let followedBodyLastPos = new THREE.Vector3();
+
+// ── Impact flash system ───────────────────────────────────────────────────
+interface ImpactFlash { light: THREE.PointLight; age: number; duration: number; }
+const impactFlashes: ImpactFlash[] = [];
+
+/** Blend two hex colors. t=0 → c1, t=1 → c2. */
+function lerpColor(c1: number, c2: number, t: number): number {
+  const r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
+  const r2 = (c2 >> 16) & 0xff, g2 = (c2 >> 8) & 0xff, b2 = c2 & 0xff;
+  return (Math.round(r1 + (r2 - r1) * t) << 16) |
+         (Math.round(g1 + (g2 - g1) * t) <<  8) |
+          Math.round(b1 + (b2 - b1) * t);
+}
+
+// Maximum simultaneous debris bodies (performance cap)
+const MAX_DEBRIS = 150;
+
+/**
+ * Called by SolarSystem.onImpact when a small body strikes a large one.
+ * Spawns N ejecta fragments around the target; the impactor itself is removed
+ * by SolarSystem.handleCollisions() after this returns.
+ *
+ * Physics: debris velocity = target.velocity + ejecta_direction × ejecta_speed.
+ * ejecta_speed is [5%-25%] × relSpeed, so fragments below the target's escape
+ * velocity stay in orbit and eventually re-impact → accretion.
+ */
+function spawnImpactDebris(target: Body, impactor: Body, relVel: THREE.Vector3) {
+  const currentDebris = solar.bodies.filter(b => b.type === 'debris').length;
+  if (currentDebris >= MAX_DEBRIS) return;
+
+  const relSpeed = relVel.length(); // m/s
+
+  // 70% of impactor mass becomes ejecta, split into N fragments
+  const debrisMassTotal = impactor.mass * 0.7;
+  const N = Math.min(8, Math.max(4, Math.ceil(debrisMassTotal / 5e20)));
+  const nActual = Math.min(N, MAX_DEBRIS - currentDebris);
+  // Minimum mass so debris is gravitationally meaningful
+  const debrisMassEach = Math.max(debrisMassTotal / nActual, 5e20);
+
+  // Direction from target toward impactor (main ejecta axis)
+  const impactAxis = impactor.position.clone().sub(target.position).normalize();
+
+  // Scatter radius in SI — inside the target's artistic draw sphere
+  const scatterR = target.drawRadius * (AU / 100) * 0.8;
+
+  // Target escape velocity from draw-radius surface (to gauge how many stay in orbit)
+  const vEsc = escapeVelocity(target);
+
+  for (let k = 0; k < nActual; k++) {
+    // Random ejecta direction biased outward along impact axis
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = (Math.random() - 0.5) * Math.PI * 0.6;
+    const randDir = new THREE.Vector3(
+      Math.cos(theta) * Math.cos(phi),
+      Math.sin(phi),
+      Math.sin(theta) * Math.cos(phi),
+    );
+    const ejectaDir = impactAxis.clone().multiplyScalar(0.55).addScaledVector(randDir, 0.45).normalize();
+
+    // Ejecta speed: 5–25% of impact speed (keeps most debris near target's escape velocity)
+    const ejectaSpeed = relSpeed * (0.05 + Math.random() * 0.20);
+
+    // Random position scattered around target within its drawRadius
+    const posScatter = new THREE.Vector3(
+      Math.random() - 0.5,
+      (Math.random() - 0.5) * 0.3, // mostly in the orbital plane
+      Math.random() - 0.5,
+    ).normalize().multiplyScalar(scatterR * (0.15 + Math.random() * 0.85));
+
+    bodyCounter++;
+    const debris = new Body({
+      name: `Fragment ${bodyCounter}`,
+      type: 'debris',
+      mass: debrisMassEach,
+      realRadius: 5e4,
+      drawRadius: 0.12,
+      color: lerpColor(target.color, 0xff6622, 0.6), // hot orange ejecta
+      position: target.position.clone().add(posScatter),
+      velocity: target.velocity.clone().addScaledVector(ejectaDir, ejectaSpeed),
+    }, scene);
+
+    solar.add(debris);
+  }
+
+  // Visual impact flash (warm orange glow that fades over 0.4 s)
+  const flash = new THREE.PointLight(0xff7700, 12, target.drawRadius * 25);
+  flash.position.copy(target.mesh.position);
+  scene.add(flash);
+  impactFlashes.push({ light: flash, age: 0, duration: 0.4 });
+
+  // Log escape velocity vs typical ejecta speed to console (educational)
+  console.info(
+    `[Impact] ${impactor.name} → ${target.name} | relV=${(relSpeed/1e3).toFixed(1)} km/s | ` +
+    `v_esc=${(vEsc/1e3).toFixed(1)} km/s | ${nActual} fragments spawned`
+  );
+}
+
+// Wire the debris spawner — must be after the function definition above
+solar.onImpact = spawnImpactDebris;
 
 // ── Raycaster (kept for right-click delete) ───────────────────────────────
 const raycaster = new THREE.Raycaster();
@@ -402,7 +503,18 @@ function animate() {
 
   sunLight.position.copy(sun.mesh.position);
 
-  // Camera fly-to animation (double-click focus)
+  // Fade out impact flashes
+  for (let i = impactFlashes.length - 1; i >= 0; i--) {
+    const f = impactFlashes[i];
+    f.age += delta;
+    f.light.intensity = Math.max(0, 12 * (1 - f.age / f.duration));
+    if (f.age >= f.duration) {
+      scene.remove(f.light);
+      impactFlashes.splice(i, 1);
+    }
+  }
+
+
   if (flyState) {
     // Keep target/cam endpoints anchored to the moving body
     if (selectedBody) {
