@@ -986,3 +986,99 @@ button {
   background: rgba(99,179,255,0.3);
   box-shadow: 0 0 16px rgba(99,179,255,0.3);
 }
+
+/* ─── Scale 3 Atomic — Periodic Table Panel ─────────────────────────────── */
+#atomic-table {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(4, 12, 28, 0.92);
+  border: 1px solid rgba(100, 140, 200, 0.18);
+  border-radius: 14px;
+  padding: 10px 14px 8px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(6px);
+}
+
+.at-title {
+  font-size: 10px;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.at-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.at-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.at-spacer {
+  flex: 1;
+  min-width: 20px;
+}
+
+.at-cell {
+  width: 38px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  transition: transform 0.15s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  user-select: none;
+}
+
+.at-cell:hover {
+  border-color: var(--cc);
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.at-cell.at-discovered {
+  border-color: var(--cc);
+  background: color-mix(in srgb, var(--cc) 18%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--cc) 50%, transparent);
+}
+
+.at-cell.at-discovered .at-sym {
+  color: var(--cc);
+}
+
+.at-z {
+  font-size: 9px;
+  color: #64748b;
+  line-height: 1;
+}
+
+.at-sym {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+  line-height: 1;
+}
+
+.at-progress {
+  font-size: 10px;
+  color: #475569;
+}
+
+.at-progress strong {
+  color: #7dd3fc;
+}
