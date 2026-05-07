@@ -83,17 +83,6 @@ region, self-gravity wins and the cloud collapses.
 That threshold is captured by the Jeans criterion. A slightly spinning
 cloud does not fall straight inward forever — conservation of angular
 momentum helps flatten it into a rotating protostellar disk.`,
-      equation: `Jeans mass criterion:
-M_J = (5kT/Gm)^(3/2) · (3/4πρ)^(1/2)
-
-k = Boltzmann constant
-T = temperature
-G = gravitational constant
-m = mean particle mass
-ρ = gas density
-
-When cloud mass > M_J → gravitational collapse!
-Angular momentum → disk formation`,
       hint: 'Add atoms, cool the cloud, and watch the Jeans instability bar climb toward collapse.',
     });
     EventBus.emit('edu:event', { text: 'A diffuse hydrogen nebula drifts near the threshold of instability.' });

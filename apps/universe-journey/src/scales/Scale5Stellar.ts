@@ -120,20 +120,6 @@ until it reaches the threshold for hydrogen fusion.
 A newborn star balances gravity with pressure gradients and radiation.
 That balance is called hydrostatic equilibrium. Once fusion starts, the
 star can settle onto the main sequence.`,
-      equation: `Hydrostatic equilibrium:
-dP/dr = −ρ(r)·g(r)
-
-Virial theorem: T_kinetic = −½ E_potential
-
-pp-chain (main sequence fusion):
-4¹H → ⁴He + 2e⁺ + 2νe + 26.7 MeV
-
-Stefan-Boltzmann:
-L = 4πR²σT⁴
-
-Our Sun: L☉ = 3.8×10²⁶ W
-         T☉ = 5,778 K (surface)
-         T_core ≈ 1.5×10⁷ K`,
       hint: 'Monitor temperature and pressure. Compression heats the core until fusion ignites.',
     });
     EventBus.emit('edu:event', { text: 'The protostar contracts, converting gravity into heat.' });

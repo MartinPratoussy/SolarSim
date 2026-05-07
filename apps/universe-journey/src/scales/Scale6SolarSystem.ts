@@ -568,7 +568,6 @@ export class Scale6SolarSystem implements IScale {
     EventBus.emit('edu:update', {
       title: 'Scale 6 — Solar System (10¹¹ m)',
       body: 'You made it! From quarks to a star with orbiting planets. This is Newtonian N-body gravity — every body attracts every other body via F = Gm₁m₂/r². Add stars, black holes, watch chaos unfold.',
-      equation: 'Newton\'s Law of Gravitation:\nF = G·m₁·m₂/r²\nG = 6.674×10⁻¹¹ N·m²/kg²\n\nRK4 integration for stable orbits',
       hint: '👆 Use the toolbar to add bodies. Double-click to focus camera on a body.',
     });
     EventBus.emit('edu:event', { text: 'Scale 6 is live: the full SolarSim sandbox now runs inside the journey.' });

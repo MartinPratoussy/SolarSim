@@ -121,17 +121,6 @@ Hydrogen’s single proton makes the simplest atom. Helium’s two-proton,
 two-neutron nucleus pulls two electrons into a compact 1s shell.
 Excited electrons fall back down and emit photons with specific
 energies — the spectral fingerprints astronomers see in stars and nebulae.`,
-      equation: `Bohr energy levels:
-E_n = −13.6 eV / n²
-
-n=1 (ground): −13.6 eV
-n=2:           −3.4 eV
-n=3:           −1.51 eV
-
-Photon emitted: hf = E_n2 − E_n1
-Lyman series (UV): n→1
-Balmer series (visible): n→2
-  Hα: 656 nm (red), Hβ: 486 nm (blue-green)`,
       hint: 'Feed electrons into hydrogen and helium, then excite them to watch spectral photons fly out.',
     });
     EventBus.emit('edu:event', { text: 'Hydrogen and helium nuclei wait for electrons to neutralise them.' });

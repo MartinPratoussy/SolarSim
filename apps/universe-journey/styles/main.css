@@ -139,6 +139,38 @@ button {
   flex-direction: column;
   gap: 12px;
   backdrop-filter: blur(18px);
+  transition: transform 0.3s ease;
+}
+
+#edu-panel.collapsed {
+  transform: translateX(320px);
+}
+
+#edu-toggle-btn {
+  position: absolute;
+  left: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 54px;
+  background: rgba(0, 0, 15, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: #63b3ff;
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(18px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: color 0.2s, background 0.2s;
+}
+
+#edu-toggle-btn:hover {
+  color: #fff;
+  background: rgba(99, 179, 255, 0.15);
 }
 
 #edu-title {
@@ -278,6 +310,19 @@ button {
 /* KaTeX color overrides to match dark theme */
 .equation-box .katex { color: #c9e4ff; font-size: 1.15em; }
 .equation-box .katex-display { margin: 0; }
+
+/* Inline equation block used inside edu-body sections */
+#edu-body .edu-equation-inline {
+  background: rgba(99, 179, 255, 0.06);
+  border: 1px solid rgba(99, 179, 255, 0.2);
+  border-radius: 8px;
+  padding: 12px 10px;
+  text-align: center;
+  overflow: hidden;
+}
+
+#edu-body .edu-equation-inline .katex { color: #c9e4ff; font-size: 1em; }
+#edu-body .edu-equation-inline .katex-display { margin: 0; }
 
 .hint {
   font-size: 12px;

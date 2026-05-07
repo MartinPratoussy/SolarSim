@@ -2,10 +2,15 @@ import { EventBus } from './EventBus';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
+/** Render a LaTeX string to HTML for embedding inside edu body templates. */
+export function mathHtml(latex: string, displayMode = true): string {
+  return katex.renderToString(latex, { displayMode, throwOnError: false, output: 'html' });
+}
+
 export class EduPanel {
+  private readonly panel = document.getElementById('edu-panel') as HTMLDivElement;
   private readonly title = document.getElementById('edu-title') as HTMLHeadingElement;
   private readonly body = document.getElementById('edu-body') as HTMLDivElement;
-  private readonly equation = document.getElementById('edu-equation') as HTMLDivElement;
   private readonly hint = document.getElementById('edu-hint') as HTMLDivElement;
   private readonly events = document.getElementById('edu-events') as HTMLDivElement;
   private readonly toast = document.getElementById('toast') as HTMLDivElement;
@@ -15,13 +20,16 @@ export class EduPanel {
   private toastTimer: number | null = null;
 
   constructor() {
-    EventBus.on('edu:update', ({ title, body, equation, hint }) => {
+    // Panel collapse toggle
+    const toggleBtn = document.getElementById('edu-toggle-btn') as HTMLButtonElement;
+    toggleBtn.addEventListener('click', () => {
+      const collapsed = this.panel.classList.toggle('collapsed');
+      toggleBtn.textContent = collapsed ? '▶' : '◀';
+    });
+
+    EventBus.on('edu:update', ({ title, body, hint }) => {
       this.title.textContent = title;
       this.body.innerHTML = body;
-      this.equation.innerHTML = equation
-        ? katex.renderToString(equation, { displayMode: true, throwOnError: false, output: 'html' })
-        : '';
-      this.equation.style.display = equation ? 'block' : 'none';
       this.hint.textContent = hint ?? '';
       this.hint.style.display = hint ? 'block' : 'none';
       this.events.innerHTML = '';

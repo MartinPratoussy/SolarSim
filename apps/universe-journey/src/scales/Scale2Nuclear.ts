@@ -90,14 +90,6 @@ of its parts. That missing mass became energy when it formed.
 
 Helium-4 is especially stable because it has a “magic number” of
 both protons and neutrons (2 each), filling the 1s nuclear shell.`,
-      equation: `Yukawa potential:
-V(r) = −g²·e^(−r/r₀)/r    r₀ ≈ 1.4 fm
-
-Binding energy:
-E_B = (Z·m_p + N·m_n − M)·c²
-
-Helium-4: E_B ≈ 28.3 MeV
-          E_B/A ≈ 7.07 MeV/nucleon`,
       hint: 'Gather two protons and two neutrons. Short-range attraction wins when they get close enough.',
     });
     EventBus.emit('edu:event', { text: 'The proton and neutron from the quark scale now feel the residual strong force.' });

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EventBus } from '../EventBus';
+import { mathHtml } from '../EduPanel';
 import type { IScale } from '../ScaleManager';
 
 type Flavor = 'u' | 'd' | 's';
@@ -155,10 +156,11 @@ export class Scale1Quarks implements IScale {
 
 <div class="edu-section">
   <div class="edu-section-title">Cornell Potential</div>
-  <p>The force between two quarks is described by the <span class="edu-highlight">Cornell potential</span> — the equation below. The first term pulls quarks together at short range (like electromagnetism); the second term grows with distance, making escape impossible.</p>
+  <p>The force between two quarks is described by the <span class="edu-highlight">Cornell potential</span>. The first term pulls quarks together at short range; the second grows with distance, making escape impossible.</p>
+  <div class="edu-equation-inline">${mathHtml('V(r) = -\\dfrac{4\\alpha_s}{3\\,r} + \\kappa\\, r')}</div>
   <table class="edu-def-table">
-    <tr><td><em>α</em><sub>s</sub></td><td>≈ 0.118 — the strong coupling constant</td></tr>
-    <tr><td><em>κ</em></td><td>≈ 0.18 GeV²/ℏc — string tension (rubber-band stiffness)</td></tr>
+    <tr><td><em>α</em><sub>s</sub></td><td>≈ 0.118 — strong coupling constant</td></tr>
+    <tr><td><em>κ</em></td><td>≈ 0.18 GeV²/ℏc — string tension</td></tr>
     <tr><td><em>r</em></td><td>quark separation</td></tr>
   </table>
 </div>
@@ -167,17 +169,16 @@ export class Scale1Quarks implements IScale {
 
 <div class="edu-section">
   <div class="edu-section-title">Confinement</div>
-  <p>The strong force behaves like a <span class="edu-highlight">rubber band</span>: the farther quarks pull apart, the stronger the restoring force. Beyond a critical distance, the energy stored in the "string" is enough to <em>create a new quark pair</em> — quarks can never be isolated. This is why free quarks have never been observed.</p>
+  <p>The strong force behaves like a <span class="edu-highlight">rubber band</span>: the farther quarks pull apart, the stronger the restoring force. Beyond a critical distance, the energy stored in the "string" is enough to <em>create a new quark pair</em> — quarks can never be isolated.</p>
 </div>
 
 <hr/>
 
 <div class="edu-section">
   <div class="edu-section-title">The Proton Mass Mystery</div>
-  <p>A proton has mass 938 MeV/c². The three quarks inside it total only ≈ 9 MeV/c². The remaining <span class="edu-highlight">99% comes from the binding energy</span> of the gluon field — a beautiful demonstration that <em>E = mc²</em> runs in both directions.</p>
+  <p>A proton has mass 938 MeV/c². The three quarks inside total only ≈ 9 MeV/c². The remaining <span class="edu-highlight">99% comes from gluon binding energy</span> — <em>E = mc²</em> running in both directions.</p>
 </div>`,
-      equation: `V(r) = -\\dfrac{4\\alpha_s}{3\\,r} + \\kappa\\, r`,
-      hint: '👆 Spawn quarks with the buttons below. Three quarks close together will bind automatically — gluons resolve their colour in real time.',
+      hint: '👆 Spawn quarks below. Three quarks close together bind automatically — gluons resolve colour in real time.',
     });
     EventBus.emit('edu:event', { text: 'Spawn quarks and let confinement weave them into hadrons.' });
   }
