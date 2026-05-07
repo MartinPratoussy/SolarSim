@@ -823,3 +823,166 @@ button {
   border-color: #00ccff;
   color: #00ccff;
 }
+
+
+#action-bar {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(76vw, 900px);
+}
+
+#action-bar .action-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+#action-bar .action-label.heavy {
+  color: #f9a8d4;
+}
+
+#action-bar .action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+#action-bar .heavy-quark-button {
+  border-color: rgba(232, 121, 249, 0.45);
+  color: #f0abfc;
+}
+
+#action-bar .heavy-quark-button:hover {
+  background: rgba(232, 121, 249, 0.16);
+  box-shadow: 0 0 12px rgba(232, 121, 249, 0.28);
+}
+
+#action-bar .heavy-quark-button.active {
+  background: rgba(232, 121, 249, 0.3);
+  box-shadow: 0 0 14px rgba(232, 121, 249, 0.4);
+}
+
+#action-bar .top-quark-button {
+  border-color: rgba(248, 250, 252, 0.55);
+  color: #f8fafc;
+}
+
+#action-bar .action-clear-button {
+  margin-top: 2px;
+}
+
+#discovery-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+#discovery-modal.visible {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+#discovery-card {
+  background: rgba(0, 5, 20, 0.96);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 16px;
+  padding: 32px 36px;
+  max-width: 420px;
+  width: calc(100% - 48px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(99,179,255,0.2), 0 0 0 1px rgba(255,255,255,0.05);
+}
+
+#discovery-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #fbbf24;
+  padding: 3px 10px;
+  border: 1px solid rgba(251,191,36,0.4);
+  border-radius: 999px;
+  background: rgba(251,191,36,0.08);
+}
+
+#discovery-badge.easter-egg {
+  color: #f0abfc;
+  border-color: rgba(240,171,252,0.4);
+  background: rgba(240,171,252,0.08);
+  content: 'EASTER EGG UNLOCKED';
+}
+
+#discovery-symbol {
+  font-size: 56px;
+  font-weight: 900;
+  line-height: 1;
+  margin: 4px 0;
+}
+
+#discovery-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f0f8ff;
+}
+
+#discovery-quarks {
+  font-size: 13px;
+  color: #94a3b8;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.05em;
+}
+
+#discovery-props {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #7dd3fc;
+  font-weight: 600;
+  margin: 2px 0;
+}
+
+#discovery-fact {
+  font-size: 13px;
+  color: #c0d4e8;
+  line-height: 1.65;
+  max-height: 160px;
+  overflow-y: auto;
+  text-align: left;
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  border-left: 3px solid rgba(99,179,255,0.3);
+}
+
+#discovery-close {
+  margin-top: 8px;
+  background: rgba(99,179,255,0.15);
+  border: 1px solid rgba(99,179,255,0.4);
+  color: #93c5fd;
+  padding: 9px 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+#discovery-close:hover {
+  background: rgba(99,179,255,0.3);
+  box-shadow: 0 0 16px rgba(99,179,255,0.3);
+}

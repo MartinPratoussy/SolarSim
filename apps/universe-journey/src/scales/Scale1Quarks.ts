@@ -3,7 +3,7 @@ import { EventBus } from '../EventBus';
 import { mathHtml } from '../EduPanel';
 import type { IScale } from '../ScaleManager';
 
-type Flavor = 'u' | 'd' | 's';
+type Flavor = 'u' | 'd' | 's' | 'c' | 'b' | 't';
 type ColorCharge = 'R' | 'G' | 'B';
 
 interface Quark {
@@ -16,11 +16,12 @@ interface Quark {
   velocity: THREE.Vector2;
   locked: boolean;
   flash: number;
+  decayIn?: number;
 }
 
 interface Hadron {
   id: number;
-  kind: 'Proton' | 'Neutron' | 'Hadron';
+  kind: string;
   quarks: Quark[];
   center: THREE.Vector2;
   drift: THREE.Vector2;
@@ -29,14 +30,150 @@ interface Hadron {
   label: THREE.Sprite;
 }
 
+interface HadronInfo {
+  name: string;
+  symbol: string;
+  charge: string;
+  mass: string;
+  fact: string;
+  isEasterEgg?: boolean;
+  accentColor: number;
+}
+
 const SCALE_INDEX = 0;
 const CONFINE_RADIUS = 1.8;
-const MAX_QUARKS = 20;
+const MAX_QUARKS = 24;
 const COLOR_ORDER: ColorCharge[] = ['R', 'G', 'B'];
-const FLAVOR_CONFIG: Record<Flavor, { label: string; color: number; mass: number }> = {
+const FLAVOR_CONFIG: Record<Flavor, { label: string; color: number; mass: number; decayIn?: number }> = {
   u: { label: 'Up quark', color: 0xa6d8ff, mass: 1 },
   d: { label: 'Down quark', color: 0xff8356, mass: 1.18 },
   s: { label: 'Strange quark', color: 0xcdfb6d, mass: 1.8 },
+  c: { label: 'Charm quark', color: 0xe879f9, mass: 2.8 },
+  b: { label: 'Bottom quark', color: 0xf59e0b, mass: 5.4 },
+  t: { label: 'Top quark', color: 0xf8fafc, mass: 12.0, decayIn: 0.7 },
+};
+
+const HADRON_DATA: Record<string, HadronInfo> = {
+  duu: {
+    name: 'Proton',
+    symbol: 'p⁺',
+    charge: '+1',
+    mass: '938.3 MeV/c²',
+    accentColor: 0x7dd3fc,
+    fact: 'The proton is the backbone of every atomic nucleus. Its charge defines what element an atom is. Protons appear to be essentially stable — their half-life exceeds 10³⁴ years, longer than the age of the universe by 24 orders of magnitude.',
+  },
+  ddu: {
+    name: 'Neutron',
+    symbol: 'n⁰',
+    charge: '0',
+    mass: '939.6 MeV/c²',
+    accentColor: 0xa8a29e,
+    fact: 'Free neutrons are unstable, decaying to a proton, electron and antineutrino in ~14.8 minutes. Inside a nucleus the residual strong force stabilises them — without neutrons, most nuclei would blow apart from proton-proton repulsion.',
+  },
+  dsu: {
+    name: 'Lambda⁰',
+    symbol: 'Λ⁰',
+    charge: '0',
+    mass: '1115.7 MeV/c²',
+    accentColor: 0x86efac,
+    fact: 'The lightest strange baryon, discovered in 1947 in cosmic-ray cloud chamber photographs. It was the first particle containing a strange quark ever seen. Despite being "long-lived" by particle physics standards (2.6×10⁻¹⁰ s), it still decays 10¹³ times faster than a free neutron.',
+  },
+  suu: {
+    name: 'Sigma⁺',
+    symbol: 'Σ⁺',
+    charge: '+1',
+    mass: '1189.4 MeV/c²',
+    accentColor: 0xfcd34d,
+    fact: 'A charged strange baryon — one strange quark plus two up quarks. Part of the baryon octet predicted by Gell-Mann\'s Eightfold Way symmetry scheme (1961). Decays primarily to proton + neutral pion in ~8×10⁻¹¹ s.',
+  },
+  dds: {
+    name: 'Sigma⁻',
+    symbol: 'Σ⁻',
+    charge: '−1',
+    mass: '1197.4 MeV/c²',
+    accentColor: 0xf87171,
+    fact: 'The negatively charged member of the Sigma triplet. Remarkably, despite having the same quark content signature as other Sigmas, the three Sigma baryons have slightly different masses due to electromagnetic and isospin breaking effects.',
+  },
+  ssu: {
+    name: 'Xi⁰',
+    symbol: 'Ξ⁰',
+    charge: '0',
+    mass: '1314.9 MeV/c²',
+    accentColor: 0xc4b5fd,
+    fact: 'A "doubly strange" baryon — contains two strange quarks. Called a "cascade" particle because it decays in two sequential steps, each producing a lighter strange baryon, before finally ending as ordinary nucleons and pions.',
+  },
+  dss: {
+    name: 'Xi⁻',
+    symbol: 'Ξ⁻',
+    charge: '−1',
+    mass: '1321.7 MeV/c²',
+    accentColor: 0xa78bfa,
+    fact: 'The charged doubly-strange baryon. With two heavy strange quarks, it\'s significantly more massive than a proton. Decays via the weak force through a chain: Ξ⁻ → Λ⁰ + π⁻, then Λ⁰ → p + π⁻.',
+  },
+  sss: {
+    name: 'Omega⁻',
+    symbol: 'Ω⁻',
+    charge: '−1',
+    mass: '1672.5 MeV/c²',
+    accentColor: 0xf0abfc,
+    isEasterEgg: true,
+    fact: '🏆 The crown jewel of the Eightfold Way. In 1962, Murray Gell-Mann predicted the Omega-minus should exist, with strangeness −3, charge −1, and mass ~1680 MeV/c² — before anyone had seen it. It was discovered at Brookhaven in February 1964 with exactly the predicted properties. This confirmed quarks were real and Gell-Mann won the 1969 Nobel Prize.',
+  },
+  uuu: {
+    name: 'Delta⁺⁺',
+    symbol: 'Δ⁺⁺',
+    charge: '+2',
+    mass: '1232 MeV/c²',
+    accentColor: 0xfbbf24,
+    isEasterEgg: true,
+    fact: '⚡ The only baryon with charge +2! Three up quarks packed together — the Pauli exclusion principle is satisfied because quarks also carry colour charge. Incredibly short-lived at 5.6×10⁻²⁴ s (it\'s a "resonance", not a proper particle). The first evidence came from Fermi\'s pion scattering experiments at Chicago in 1951.',
+  },
+  ddd: {
+    name: 'Delta⁻',
+    symbol: 'Δ⁻',
+    charge: '−1',
+    mass: '1232 MeV/c²',
+    accentColor: 0xfb923c,
+    isEasterEgg: true,
+    fact: '⚡ Three down quarks — the maximally negative baryon. Like its sibling Delta⁺⁺, it\'s a spin-3/2 resonance that decays almost instantly to a nucleon + pion. The Delta quartet (−, 0, +, ++) was essential evidence for quarks coming in exactly three colours.',
+  },
+  cdu: {
+    name: 'Lambda_c⁺',
+    symbol: 'Λ_c⁺',
+    charge: '+1',
+    mass: '2286.5 MeV/c²',
+    accentColor: 0xe879f9,
+    isEasterEgg: true,
+    fact: '✨ The lightest charmed baryon — the first particle found to contain a charm quark, discovered at SLAC in 1975. The charm quark is ~550× heavier than an up quark. Decays in ~2×10⁻¹³ s via the weak force into strange particles.',
+  },
+  bdu: {
+    name: 'Lambda_b⁰',
+    symbol: 'Λ_b⁰',
+    charge: '0',
+    mass: '5619.6 MeV/c²',
+    accentColor: 0xf59e0b,
+    isEasterEgg: true,
+    fact: '🔬 Contains the heavy bottom quark (~4180 MeV). Studied intensively at the LHC. In 2019, LHCb measured CP violation in Lambda_b decays — a subtle asymmetry between matter and antimatter that hints at why the universe has more matter than antimatter.',
+  },
+};
+
+const TOP_DISCOVERY: HadronInfo = {
+  name: 'Top quark',
+  symbol: 't',
+  charge: '+2/3',
+  mass: '173,000 MeV/c²',
+  accentColor: 0xffffff,
+  isEasterEgg: true,
+  fact: '🌟 The heaviest known elementary particle — as massive as a gold atom! The top quark is so heavy (173 GeV) it decays before the strong force can bind it into a hadron: t → W⁺ + b in ~5×10⁻²⁵ seconds. This is 20 times faster than hadronisation timescales. Discovered at Fermilab\'s Tevatron in 1995 after a 20-year search. It\'s the only quark whose bare properties we can measure directly.',
+};
+
+const UNKNOWN_HADRON: HadronInfo = {
+  name: 'Hadron',
+  symbol: '?',
+  charge: '?',
+  mass: '?',
+  fact: 'An exotic quark combination.',
+  accentColor: 0x94a3b8,
 };
 
 export class Scale1Quarks implements IScale {
@@ -51,6 +188,8 @@ export class Scale1Quarks implements IScale {
   private spawnMode: Flavor | null = 'u';
   private buttonMap = new Map<Flavor, HTMLButtonElement>();
   private formedKinds = new Set<string>();
+  private discoveredParticles = new Set<string>();
+  private discoveryTimeoutId: number | null = null;
   private completed = false;
   private nextId = 1;
   private nextHadronId = 1;
@@ -73,7 +212,10 @@ export class Scale1Quarks implements IScale {
     this.quarks = [];
     this.hadrons = [];
     this.formedKinds.clear();
+    this.discoveredParticles.clear();
     this.completed = false;
+    this.nextId = 1;
+    this.nextHadronId = 1;
     this.spawnMode = 'u';
     renderer.domElement.addEventListener('click', this.handleCanvasClick);
     this.setupActionBar();
@@ -84,6 +226,13 @@ export class Scale1Quarks implements IScale {
     this.renderer?.domElement.removeEventListener('click', this.handleCanvasClick);
     document.getElementById('action-bar')!.innerHTML = '';
     document.getElementById('progress-bar-container')!.style.display = 'none';
+    if (this.discoveryTimeoutId !== null) {
+      window.clearTimeout(this.discoveryTimeoutId);
+      this.discoveryTimeoutId = null;
+    }
+    document.getElementById('discovery-close')!.onclick = null;
+    document.getElementById('discovery-modal')!.classList.remove('visible');
+    document.getElementById('discovery-modal')!.setAttribute('aria-hidden', 'true');
     this.scene.clear();
     this.quarks = [];
     this.hadrons = [];
@@ -96,6 +245,17 @@ export class Scale1Quarks implements IScale {
     }
     const step = Math.min(dt, 0.033);
     this.integrateFreeQuarks(step);
+
+    for (const quark of this.quarks.filter((candidate) => candidate.flavor === 't' && !candidate.locked)) {
+      if (quark.decayIn !== undefined) {
+        quark.decayIn -= step;
+        if (quark.decayIn <= 0) {
+          this.decayTopQuark(quark);
+          break;
+        }
+      }
+    }
+
     this.updateHadrons(step);
     this.detectHadrons();
     this.renderer.render(this.scene, this.camera);
@@ -136,6 +296,18 @@ export class Scale1Quarks implements IScale {
       <div class="edu-card-name">↯ Strange quark <span class="edu-tag">s</span></div>
       <div class="edu-card-sub">Charge <span class="edu-highlight">−¹⁄₃ e</span> · Mass ≈ 95 MeV/c²<br/>Forms exotic hadrons — short-lived in nature.</div>
     </div>
+    <div class="edu-card">
+      <div class="edu-card-name">✨ Charm quark <span class="edu-tag">c</span></div>
+      <div class="edu-card-sub">Charge <span class="edu-highlight">+²⁄₃ e</span> · Mass ≈ 1.27 GeV/c²<br/>Only seen in high-energy collisions.</div>
+    </div>
+    <div class="edu-card">
+      <div class="edu-card-name">🔬 Bottom quark <span class="edu-tag">b</span></div>
+      <div class="edu-card-sub">Charge <span class="edu-highlight">−¹⁄₃ e</span> · Mass ≈ 4.18 GeV/c²<br/>Named "beauty" quark in Europe.</div>
+    </div>
+    <div class="edu-card">
+      <div class="edu-card-name">🌟 Top quark <span class="edu-tag">t</span></div>
+      <div class="edu-card-sub">Charge <span class="edu-highlight">+²⁄₃ e</span> · Mass ≈ 173 GeV/c²<br/>Decays before it can form hadrons!</div>
+    </div>
   </div>
 </div>
 
@@ -157,7 +329,7 @@ export class Scale1Quarks implements IScale {
 <div class="edu-section">
   <div class="edu-section-title">Cornell Potential</div>
   <p>The force between two quarks is described by the <span class="edu-highlight">Cornell potential</span>. The first term pulls quarks together at short range; the second grows with distance, making escape impossible.</p>
-  <div class="edu-equation-inline">${mathHtml('V(r) = -\\dfrac{4\\alpha_s}{3\\,r} + \\kappa\\, r')}</div>
+  <div class="edu-equation-inline">${mathHtml('V(r) = -\dfrac{4\alpha_s}{3\,r} + \kappa\, r')}</div>
   <table class="edu-def-table">
     <tr><td><em>α</em><sub>s</sub></td><td>≈ 0.118 — strong coupling constant</td></tr>
     <tr><td><em>κ</em></td><td>≈ 0.18 GeV²/ℏc — string tension</td></tr>
@@ -178,7 +350,7 @@ export class Scale1Quarks implements IScale {
   <div class="edu-section-title">The Proton Mass Mystery</div>
   <p>A proton has mass 938 MeV/c². The three quarks inside total only ≈ 9 MeV/c². The remaining <span class="edu-highlight">99% comes from gluon binding energy</span> — <em>E = mc²</em> running in both directions.</p>
 </div>`,
-      hint: '👆 Spawn quarks below. Three quarks close together bind automatically — gluons resolve colour in real time.',
+      hint: '👆 Spawn quarks with the u/d/s buttons, then experiment with c/b/t for heavy baryons. Legendary easter egg: the Omega-minus (sss) is hiding in the strange sector.',
     });
     EventBus.emit('edu:event', { text: 'Spawn quarks and let confinement weave them into hadrons.' });
   }
@@ -187,22 +359,58 @@ export class Scale1Quarks implements IScale {
     const actionBar = document.getElementById('action-bar')!;
     actionBar.innerHTML = '';
     this.buttonMap.clear();
-    const specs: Array<[Flavor, string]> = [
+
+    const commonRow = document.createElement('div');
+    commonRow.className = 'action-row';
+    const heavyRow = document.createElement('div');
+    heavyRow.className = 'action-row';
+
+    const commonLabel = document.createElement('div');
+    commonLabel.className = 'action-label';
+    commonLabel.textContent = 'Common quarks';
+
+    const heavyLabel = document.createElement('div');
+    heavyLabel.className = 'action-label heavy';
+    heavyLabel.textContent = 'Heavy / exotic quarks';
+
+    const commonSpecs: Array<[Flavor, string]> = [
       ['u', '+ Up quark (u)'],
       ['d', '+ Down quark (d)'],
       ['s', '+ Strange quark (s)'],
     ];
-    for (const [flavor, label] of specs) {
+    const heavySpecs: Array<[Flavor, string]> = [
+      ['c', '+ Charm quark (c)'],
+      ['b', '+ Bottom quark (b)'],
+      ['t', '+ Top quark (t)'],
+    ];
+
+    for (const [flavor, label] of commonSpecs) {
       const button = this.makeButton(label, () => {
         this.spawnMode = flavor;
         this.updateButtonState();
       });
       this.buttonMap.set(flavor, button);
-      actionBar.appendChild(button);
+      commonRow.appendChild(button);
     }
+
+    for (const [flavor, label] of heavySpecs) {
+      const button = this.makeButton(label, () => {
+        this.spawnMode = flavor;
+        this.updateButtonState();
+      });
+      button.classList.add('heavy-quark-button');
+      if (flavor === 't') {
+        button.classList.add('top-quark-button');
+        button.title = 'Top quark: decays in ~0.7s into a bottom quark!';
+      }
+      this.buttonMap.set(flavor, button);
+      heavyRow.appendChild(button);
+    }
+
+    actionBar.append(commonLabel, commonRow, heavyLabel, heavyRow);
     actionBar.appendChild(this.makeButton('Clear free quarks', () => {
       this.clearFreeQuarks();
-    }));
+    }, ['action-clear-button']));
     this.updateButtonState();
   }
 
@@ -212,9 +420,10 @@ export class Scale1Quarks implements IScale {
     });
   }
 
-  private makeButton(label: string, onClick: () => void): HTMLButtonElement {
+  private makeButton(label: string, onClick: () => void, classNames: string[] = []): HTMLButtonElement {
     const button = document.createElement('button');
     button.textContent = label;
+    button.classList.add(...classNames);
     button.addEventListener('click', onClick);
     return button;
   }
@@ -241,7 +450,6 @@ export class Scale1Quarks implements IScale {
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.26, 20, 20), material);
     mesh.position.set(x, y, 0);
 
-    // Flavor letter sprite — sits just in front of the sphere
     const labelSprite = createQuarkLabel(flavor, config.color);
     labelSprite.position.set(0, 0, 0.3);
     mesh.add(labelSprite);
@@ -259,6 +467,7 @@ export class Scale1Quarks implements IScale {
       velocity: tangent,
       locked: false,
       flash: 0,
+      decayIn: config.decayIn,
     });
     EventBus.emit('edu:event', { text: `${config.label} spawned with ${colorCharge} colour charge.` });
   }
@@ -314,18 +523,13 @@ export class Scale1Quarks implements IScale {
         const delta = b.position.clone().sub(a.position);
         const dist = Math.max(delta.length(), 0.35);
         const dir = delta.normalize();
-        // Cornell-inspired: all free quarks attract each other (colour-averaged),
-        // same-colour pairs slightly less attractive (gluon exchange not yet complete).
-        // Positive strength = attraction toward each other.
         const sameColor = a.colorCharge === b.colorCharge;
         let strength = sameColor
-          ? 0.55 / (dist * dist + 0.3)    // same colour: weak attraction
-          : 1.35 / (dist * dist + 0.25);  // different colour: strong attraction
-        // String tension: restoring force at long range (confinement)
+          ? 0.55 / (dist * dist + 0.3)
+          : 1.35 / (dist * dist + 0.25);
         if (dist > CONFINE_RADIUS * 1.8) {
           strength += 0.8 * (dist - CONFINE_RADIUS * 1.8);
         }
-        // Short-range hard core repulsion
         if (dist < 0.7) {
           strength -= 0.5;
         }
@@ -346,12 +550,9 @@ export class Scale1Quarks implements IScale {
           const centroid = trio
             .reduce((acc, quark) => acc.add(quark.position), new THREE.Vector2())
             .multiplyScalar(1 / 3);
-          // Proximity check — all three must be close enough
           if (trio.some((quark) => quark.position.distanceTo(centroid) > CONFINE_RADIUS)) {
             continue;
           }
-          // Gluons exchange colour — reassign R/G/B to make the trio colour-neutral.
-          // This is physically correct: gluons continuously change quark colour charges.
           const shuffled = (['R', 'G', 'B'] as ColorCharge[]).sort(() => Math.random() - 0.5);
           trio.forEach((quark, idx) => {
             quark.colorCharge = shuffled[idx];
@@ -364,24 +565,25 @@ export class Scale1Quarks implements IScale {
   }
 
   private formHadron(quarks: Quark[], centroid: THREE.Vector2): void {
-    const signature = quarks.map((quark) => quark.flavor).sort().join('');
-    const kind = signature === 'duu' ? 'Proton' : signature === 'ddu' ? 'Neutron' : 'Hadron';
+    const key = quarks.map((quark) => quark.flavor).sort().join('');
+    const hadronInfo = HADRON_DATA[key] ?? UNKNOWN_HADRON;
     for (const quark of quarks) {
       quark.locked = true;
       quark.flash = 1;
+      quark.decayIn = undefined;
     }
     const positions = new Float32Array(18);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const line = new THREE.LineSegments(
       geometry,
-      new THREE.LineBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.8 }),
+      new THREE.LineBasicMaterial({ color: hadronInfo.accentColor, transparent: true, opacity: 0.8 }),
     );
-    const label = createLabelSprite(kind);
+    const label = createLabelSprite(hadronInfo.name);
     this.scene.add(line, label);
     const hadron: Hadron = {
       id: this.nextHadronId++,
-      kind,
+      kind: hadronInfo.name,
       quarks,
       center: centroid.clone(),
       drift: new THREE.Vector2((Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 0.7),
@@ -390,17 +592,92 @@ export class Scale1Quarks implements IScale {
       label,
     };
     this.hadrons.push(hadron);
-    this.formedKinds.add(kind);
+    this.formedKinds.add(hadronInfo.name);
+
+    if (!this.discoveredParticles.has(key)) {
+      this.discoveredParticles.add(key);
+      this.showDiscoveryModal(hadronInfo, quarks);
+    }
+
     EventBus.emit('edu:event', {
-      text: `${kind} formed: ${quarks.map((quark) => `${quark.flavor}${quark.colorCharge}`).join(' + ')}`,
+      text: `${hadronInfo.name} formed: ${quarks.map((quark) => `${quark.flavor}${quark.colorCharge}`).join(' + ' )}`,
     });
     EventBus.emit('toast', {
-      title: `${kind} assembled`,
-      body: kind === 'Proton' ? 'A colour-neutral uud baryon emerged from the quark field.' : kind === 'Neutron' ? 'A colour-neutral udd baryon has locked together.' : 'Three quarks confined into a colour-neutral hadron.',
+      title: `${hadronInfo.name} assembled`,
+      body: hadronInfo.name === 'Proton'
+        ? 'A colour-neutral uud baryon emerged from the quark field.'
+        : hadronInfo.name === 'Neutron'
+          ? 'A colour-neutral udd baryon has locked together.'
+          : `Three quarks confined into ${hadronInfo.name}.`,
     });
     if (!this.completed && this.formedKinds.has('Proton') && this.formedKinds.has('Neutron')) {
       this.completed = true;
       EventBus.emit('scale:complete', { scale: SCALE_INDEX });
+    }
+  }
+
+  private showDiscoveryModal(info: HadronInfo, quarks?: Quark[]): void {
+    const modal = document.getElementById('discovery-modal')!;
+    const card = document.getElementById('discovery-card')!;
+    const badge = document.getElementById('discovery-badge')!;
+
+    badge.textContent = info.isEasterEgg ? '🥚 EASTER EGG UNLOCKED' : 'NEW PARTICLE DISCOVERED';
+    badge.className = info.isEasterEgg ? 'easter-egg' : '';
+
+    const r = (info.accentColor >> 16) & 0xff;
+    const g = (info.accentColor >> 8) & 0xff;
+    const b = info.accentColor & 0xff;
+    card.style.boxShadow = `0 0 60px rgba(${r},${g},${b},0.35), 0 0 0 1px rgba(${r},${g},${b},0.2)`;
+    card.style.borderColor = `rgba(${r},${g},${b},0.3)`;
+
+    document.getElementById('discovery-symbol')!.textContent = info.symbol;
+    document.getElementById('discovery-symbol')!.style.color = `rgb(${r},${g},${b})`;
+    document.getElementById('discovery-name')!.textContent = info.name;
+    document.getElementById('discovery-quarks')!.textContent = quarks
+      ? quarks.map((quark) => quark.flavor).join(' + ' )
+      : info.symbol;
+    document.getElementById('discovery-charge')!.textContent = `Charge: ${info.charge}`;
+    document.getElementById('discovery-mass')!.textContent = `Mass: ${info.mass}`;
+    document.getElementById('discovery-fact')!.textContent = info.fact;
+
+    modal.classList.add('visible');
+    modal.setAttribute('aria-hidden', 'false');
+
+    if (this.discoveryTimeoutId !== null) {
+      window.clearTimeout(this.discoveryTimeoutId);
+    }
+
+    const close = document.getElementById('discovery-close')!;
+    const dismiss = () => {
+      modal.classList.remove('visible');
+      modal.setAttribute('aria-hidden', 'true');
+      close.onclick = null;
+      if (this.discoveryTimeoutId !== null) {
+        window.clearTimeout(this.discoveryTimeoutId);
+        this.discoveryTimeoutId = null;
+      }
+    };
+    close.onclick = dismiss;
+    this.discoveryTimeoutId = window.setTimeout(dismiss, 15000);
+  }
+
+  private decayTopQuark(quark: Quark): void {
+    const { x, y } = quark.position;
+    this.scene.remove(quark.mesh);
+    this.quarks = this.quarks.filter((candidate) => candidate.id !== quark.id);
+
+    const flash = new THREE.PointLight(0xffffff, 15, 6, 2);
+    flash.position.set(x, y, 0);
+    this.scene.add(flash);
+    window.setTimeout(() => this.scene.remove(flash), 300);
+
+    this.spawnQuark('b', x, y);
+
+    EventBus.emit('edu:event', { text: 'Top quark decayed: t → b + W⁺ (W⁺ escaped)' });
+
+    if (!this.discoveredParticles.has('t')) {
+      this.discoveredParticles.add('t');
+      this.showDiscoveryModal(TOP_DISCOVERY);
     }
   }
 
@@ -446,14 +723,12 @@ function createQuarkLabel(flavor: Flavor, colorHex: number): THREE.Sprite {
   canvas.width = 64;
   canvas.height = 64;
   const ctx = canvas.getContext('2d')!;
-  // Convert hex color to CSS
   const r = (colorHex >> 16) & 0xff;
   const g = (colorHex >> 8) & 0xff;
   const b = colorHex & 0xff;
   ctx.font = 'bold 38px "Segoe UI", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // Slight dark shadow for readability
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillText(flavor, 33, 34);
   ctx.fillStyle = `rgb(${r},${g},${b})`;
@@ -469,6 +744,7 @@ function createLabelSprite(text: string): THREE.Sprite {
   canvas.width = 256;
   canvas.height = 96;
   const ctx = canvas.getContext('2d')!;
+  const fontSize = text.length > 12 ? 20 : text.length > 9 ? 24 : 30;
   ctx.fillStyle = 'rgba(4, 16, 40, 0.8)';
   ctx.strokeStyle = 'rgba(125, 211, 252, 0.65)';
   ctx.lineWidth = 4;
@@ -476,7 +752,7 @@ function createLabelSprite(text: string): THREE.Sprite {
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = '#e6f7ff';
-  ctx.font = 'bold 30px Segoe UI';
+  ctx.font = `bold ${fontSize}px Segoe UI`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 128, 48);
