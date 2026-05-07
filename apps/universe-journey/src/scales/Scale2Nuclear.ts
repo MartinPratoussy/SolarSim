@@ -9,7 +9,6 @@ interface Nucleon {
   position: THREE.Vector2;
   velocity: THREE.Vector2;
   locked: boolean;
-  pulse: number;
 }
 
 interface NucleusInfo {
@@ -70,10 +69,18 @@ const NUCLEUS_DATA: Record<string, NucleusInfo> = {
 };
 
 const NUCLEUS_TARGET_SIZES = [2, 3, 4, 6, 7, 8, 12] as const;
+
 const SCALE_INDEX = 1;
-const MAX_NUCLEONS = 24;
-const BOND_RANGE = 2.5;   // units within which nucleons attract each other
-const MAX_HINT_LABELS = 4; // max simultaneous forming-nucleus labels
+const MAX_NUCLEONS = 14;
+const BOND_DRAW_DIST = 1.8;
+
+// Golden-ratio spiral slot positions — natural-looking nuclear packing
+function getSlotPosition(index: number): THREE.Vector2 {
+  if (index === 0) return new THREE.Vector2(0, 0);
+  const r = 0.68 * Math.sqrt(index);
+  const angle = index * 2.39996229; // golden angle ≈ 137.5°
+  return new THREE.Vector2(Math.cos(angle) * r, Math.sin(angle) * r);
+}
 
 export class Scale2Nuclear implements IScale {
   readonly name = 'Scale 2 — Nuclear';
@@ -82,10 +89,11 @@ export class Scale2Nuclear implements IScale {
   private scene = new THREE.Scene();
   private camera = new THREE.OrthographicCamera(-12, 12, 8, -8, 0.1, 50);
   private renderer: THREE.WebGLRenderer | null = null;
+
   private nucleons: Nucleon[] = [];
+  private incomingNucleon: Nucleon | null = null;
+  private phase = 0;
   private completed = false;
-  private heliumCenter = new THREE.Vector2();
-  private heliumPhase = 0;
   private discoveredNuclei = new Set<string>();
 
   // Bond line visuals
@@ -95,10 +103,10 @@ export class Scale2Nuclear implements IScale {
   private bondPosArr: Float32Array = new Float32Array(0);
   private bondColArr: Float32Array = new Float32Array(0);
 
-  // Forming-nucleus label sprites
-  private hintSprites: THREE.Sprite[] = [];
-  private hintTextures: THREE.CanvasTexture[] = [];
-  private hintCanvases: HTMLCanvasElement[] = [];
+  // Nucleus name label sprite (floats above the nucleus)
+  private nameLabel: THREE.Sprite | null = null;
+  private nameLabelCanvas: HTMLCanvasElement | null = null;
+  private nameLabelTexture: THREE.CanvasTexture | null = null;
 
   init(_container: HTMLElement, renderer: THREE.WebGLRenderer): void {
     this.renderer = renderer;
@@ -108,13 +116,13 @@ export class Scale2Nuclear implements IScale {
     light.position.set(0, 0, 12);
     this.scene.add(light, createBackdrop());
     this.nucleons = [];
+    this.incomingNucleon = null;
+    this.phase = 0;
     this.completed = false;
-    this.heliumCenter.set(0, 0);
-    this.heliumPhase = 0;
     this.discoveredNuclei.clear();
     this.initBondVisuals();
-    this.spawnNucleon('proton', -1.6, 0.3);
-    this.spawnNucleon('neutron', 1.6, -0.3);
+    this.initNameLabel();
+    this.placeInitialProton();
     this.setupActionBar();
     this.emitEducation();
   }
@@ -125,37 +133,34 @@ export class Scale2Nuclear implements IScale {
     document.getElementById('discovery-close')!.onclick = null;
     document.getElementById('discovery-modal')!.classList.remove('visible');
     document.getElementById('discovery-modal')!.setAttribute('aria-hidden', 'true');
-    // Clean up bond line resources
     if (this.bondLines) {
-      this.scene.remove(this.bondLines);
       this.bondGeo?.dispose();
       this.bondMat?.dispose();
       this.bondLines = null;
       this.bondGeo = null;
       this.bondMat = null;
     }
-    // Clean up forming label sprites
-    for (let i = 0; i < this.hintSprites.length; i++) {
-      this.scene.remove(this.hintSprites[i]);
-      this.hintTextures[i].dispose();
-      (this.hintSprites[i].material as THREE.SpriteMaterial).dispose();
+    if (this.nameLabel) {
+      this.nameLabelTexture?.dispose();
+      (this.nameLabel.material as THREE.SpriteMaterial).dispose();
+      this.nameLabel = null;
+      this.nameLabelCanvas = null;
+      this.nameLabelTexture = null;
     }
-    this.hintSprites = [];
-    this.hintTextures = [];
-    this.hintCanvases = [];
     this.scene.clear();
     this.nucleons = [];
+    this.incomingNucleon = null;
     this.renderer = null;
   }
 
   update(dt: number): void {
-    if (!this.renderer) {
-      return;
-    }
+    if (!this.renderer) return;
     const step = Math.min(dt, 0.033);
-    this.integrate(step);
+    this.phase += step;
+    this.animateIncoming(step);
+    this.animateLocked();
     this.updateBondVisuals();
-    this.detectMilestones();
+    this.updateNameLabel();
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -169,70 +174,198 @@ export class Scale2Nuclear implements IScale {
     this.camera.updateProjectionMatrix();
   }
 
-  private initBondVisuals(): void {
-    const maxPairs = (MAX_NUCLEONS * (MAX_NUCLEONS - 1)) / 2;
-    this.bondPosArr = new Float32Array(maxPairs * 6); // 2 endpoints × 3 coords
-    this.bondColArr = new Float32Array(maxPairs * 6);
-    this.bondGeo = new THREE.BufferGeometry();
-    this.bondGeo.setAttribute('position', new THREE.BufferAttribute(this.bondPosArr, 3));
-    this.bondGeo.setAttribute('color', new THREE.BufferAttribute(this.bondColArr, 3));
-    this.bondMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthTest: false });
-    this.bondLines = new THREE.LineSegments(this.bondGeo, this.bondMat);
-    this.bondLines.renderOrder = 2;
-    this.scene.add(this.bondLines);
+  // ── Nucleon lifecycle ────────────────────────────────────────────────────
 
-    this.hintSprites = [];
-    this.hintTextures = [];
-    this.hintCanvases = [];
-    for (let i = 0; i < MAX_HINT_LABELS; i++) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 220;
-      canvas.height = 50;
-      const texture = new THREE.CanvasTexture(canvas);
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
-      sprite.scale.set(0, 0, 1); // hidden until needed
-      sprite.renderOrder = 3;
-      this.scene.add(sprite);
-      this.hintSprites.push(sprite);
-      this.hintTextures.push(texture);
-      this.hintCanvases.push(canvas);
+  private placeInitialProton(): void {
+    const n = this.makeNucleon('proton', 0, 0);
+    n.locked = true;
+    this.nucleons.push(n);
+    this.scene.add(n.mesh);
+  }
+
+  private spawnNucleon(kind: 'proton' | 'neutron'): void {
+    if (this.incomingNucleon || this.nucleons.length >= MAX_NUCLEONS) return;
+    const angle = Math.random() * Math.PI * 2;
+    const spawnR = 11;
+    const sx = Math.cos(angle) * spawnR;
+    const sy = Math.sin(angle) * spawnR;
+    const n = this.makeNucleon(kind, sx, sy);
+    // Aim at nucleus centroid with slight random wobble
+    const c = this.getNucleusCentroid();
+    const dir = new THREE.Vector2(c.x - sx, c.y - sy).normalize();
+    const wobble = new THREE.Vector2((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4);
+    n.velocity.copy(dir).add(wobble).normalize().multiplyScalar(4.5 + Math.random() * 2);
+    this.nucleons.push(n);
+    this.scene.add(n.mesh);
+    this.incomingNucleon = n;
+    this.setButtonsDisabled(true);
+    EventBus.emit('edu:event', { text: `${kind === 'proton' ? 'Proton' : 'Neutron'} approaching the nucleus…` });
+  }
+
+  private makeNucleon(kind: 'proton' | 'neutron', x: number, y: number): Nucleon {
+    const color = kind === 'proton' ? 0x5bbcff : 0xbec8d8;
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.38, 20, 20),
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8 }),
+    );
+    const label = createNucleonLabel(kind);
+    label.position.set(0, 0, 0.4);
+    mesh.add(label);
+    mesh.position.set(x, y, 0);
+    return {
+      kind,
+      mesh,
+      position: new THREE.Vector2(x, y),
+      velocity: new THREE.Vector2(),
+      locked: false,
+    };
+  }
+
+  // ── Animation ─────────────────────────────────────────────────────────
+
+  private animateIncoming(dt: number): void {
+    const n = this.incomingNucleon;
+    if (!n) return;
+    const c = this.getNucleusCentroid();
+    const toCenter = new THREE.Vector2(c.x - n.position.x, c.y - n.position.y);
+    const dist = toCenter.length();
+    n.velocity.addScaledVector(toCenter.clone().normalize().multiplyScalar(7), dt);
+    n.velocity.clampLength(0, 10);
+    n.velocity.multiplyScalar(0.97);
+    n.position.addScaledVector(n.velocity, dt);
+    n.mesh.position.set(n.position.x, n.position.y, 0);
+    // Pulsing glow that intensifies as it approaches
+    const proximity = Math.max(0, 1 - dist / 9);
+    (n.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity =
+      0.8 + Math.sin(this.phase * 8) * 0.35 * proximity;
+    // Snap to nucleus when it reaches the binding boundary
+    const lockedCount = this.nucleons.filter((x) => x.locked).length;
+    const snapRadius = 1.0 + 0.68 * Math.sqrt(lockedCount);
+    if (dist <= snapRadius) {
+      this.lockIncoming();
     }
   }
 
+  private lockIncoming(): void {
+    const n = this.incomingNucleon!;
+    const slotIndex = this.nucleons.filter((x) => x.locked).length; // count before locking
+    n.locked = true;
+    n.velocity.set(0, 0);
+    this.incomingNucleon = null;
+    const slot = getSlotPosition(slotIndex);
+    n.position.copy(slot);
+    n.mesh.position.set(slot.x, slot.y, 0);
+    (n.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 3.0; // brief flash
+    this.setButtonsDisabled(false);
+    this.checkMilestones();
+  }
+
+  private animateLocked(): void {
+    const locked = this.nucleons.filter((n) => n.locked);
+    for (let i = 0; i < locked.length; i += 1) {
+      const n = locked[i];
+      const slot = getSlotPosition(i);
+      const wobble = new THREE.Vector2(
+        Math.sin(this.phase * 1.4 + i * 1.1) * 0.04,
+        Math.cos(this.phase * 1.8 + i * 0.8) * 0.04,
+      );
+      n.position.copy(slot).add(wobble);
+      n.mesh.position.set(n.position.x, n.position.y, 0);
+      const mat = n.mesh.material as THREE.MeshStandardMaterial;
+      // Decay the snap flash back to a steady gentle pulse
+      const steadyGlow = 0.8 + Math.sin(this.phase * 3 + i * 0.7) * 0.18;
+      mat.emissiveIntensity = mat.emissiveIntensity > steadyGlow
+        ? mat.emissiveIntensity * 0.88 + steadyGlow * 0.12
+        : steadyGlow;
+    }
+  }
+
+  // ── Milestone detection ───────────────────────────────────────────────
+
+  private checkMilestones(): void {
+    const protons = this.nucleons.filter((n) => n.kind === 'proton' && n.locked).length;
+    const neutrons = this.nucleons.filter((n) => n.kind === 'neutron' && n.locked).length;
+    const key = `${protons}p${neutrons}n`;
+    const info = NUCLEUS_DATA[key];
+    if (info && !this.discoveredNuclei.has(key)) {
+      this.discoveredNuclei.add(key);
+      this.showDiscoveryModal(info, protons, neutrons);
+      EventBus.emit('edu:event', { text: `${info.name} (${info.symbol}) formed — ${info.bindingEnergy} binding energy` });
+      EventBus.emit('toast', { title: `${info.name} formed`, body: `${protons}p + ${neutrons}n · ${info.bindingEnergy}` });
+    }
+    // Scale goal: Helium-4
+    if (protons === 2 && neutrons === 2 && !this.completed) {
+      this.completed = true;
+      EventBus.emit('edu:event', { text: 'Helium-4 assembled — doubly magic nucleus, 28.3 MeV binding energy.' });
+      EventBus.emit('scale:complete', { scale: SCALE_INDEX });
+    }
+    // Be-8 easter egg: physically unstable, simulate decay back to 2×He-4
+    if (key === '4p4n') {
+      window.setTimeout(() => {
+        EventBus.emit('edu:event', { text: 'Be-8 decayed: ⁸Be → 2×⁴He (8.2×10⁻¹⁷ s — simulated as 1.5 s). Nucleus reset.' });
+        this.nucleons.forEach((x) => this.scene.remove(x.mesh));
+        this.nucleons = [];
+        this.incomingNucleon = null;
+        this.placeInitialProton();
+        this.setButtonsDisabled(false);
+      }, 1500);
+    }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+
+  private getNucleusCentroid(): THREE.Vector2 {
+    const locked = this.nucleons.filter((n) => n.locked);
+    if (locked.length === 0) return new THREE.Vector2(0, 0);
+    return locked
+      .reduce((acc, n) => acc.add(n.position), new THREE.Vector2())
+      .multiplyScalar(1 / locked.length);
+  }
+
+  private setButtonsDisabled(disabled: boolean): void {
+    document.querySelectorAll<HTMLButtonElement>('#action-bar button').forEach((btn) => {
+      btn.disabled = disabled;
+    });
+  }
+
+  // ── Bond & label visuals ───────────────────────────────────────────────
+
+  private initBondVisuals(): void {
+    const maxPairs = (MAX_NUCLEONS * (MAX_NUCLEONS - 1)) / 2;
+    this.bondPosArr = new Float32Array((maxPairs + 1) * 6); // +1 for incoming beam line
+    this.bondColArr = new Float32Array((maxPairs + 1) * 6);
+    this.bondGeo = new THREE.BufferGeometry();
+    this.bondGeo.setAttribute('position', new THREE.BufferAttribute(this.bondPosArr, 3));
+    this.bondGeo.setAttribute('color', new THREE.BufferAttribute(this.bondColArr, 3));
+    this.bondMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, depthTest: false });
+    this.bondLines = new THREE.LineSegments(this.bondGeo, this.bondMat);
+    this.bondLines.renderOrder = 2;
+    this.scene.add(this.bondLines);
+  }
+
   private updateBondVisuals(): void {
-    if (!this.bondGeo) {
-      return;
-    }
-
-    // Reset free nucleon glow before recalculating
-    for (const n of this.nucleons) {
-      if (!n.locked) {
-        (n.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.7;
-      }
-    }
-
+    if (!this.bondGeo) return;
+    const locked = this.nucleons.filter((n) => n.locked);
     let bondCount = 0;
-    for (let i = 0; i < this.nucleons.length; i++) {
-      for (let j = i + 1; j < this.nucleons.length; j++) {
-        const a = this.nucleons[i];
-        const b = this.nucleons[j];
+    // Bonds between locked nucleons
+    for (let i = 0; i < locked.length; i += 1) {
+      for (let j = i + 1; j < locked.length; j += 1) {
+        const a = locked[i];
+        const b = locked[j];
         const dist = a.position.distanceTo(b.position);
-        if (dist > BOND_RANGE) {
-          continue;
-        }
-        const t = 1 - dist / BOND_RANGE; // 0→1, closer = stronger
-        // p-n: cyan (strongest attraction), p-p: orange (Coulomb competes), n-n: blue-gray
+        if (dist > BOND_DRAW_DIST) continue;
+        const t = 1 - dist / BOND_DRAW_DIST;
         let r: number;
         let g: number;
         let bl: number;
         if (a.kind !== b.kind) {
-          [r, g, bl] = [0.2, 0.9, 1.0];
+          [r, g, bl] = [0.2, 0.9, 1.0];   // cyan: p-n (strongest)
         } else if (a.kind === 'proton') {
-          [r, g, bl] = [1.0, 0.55, 0.1];
+          [r, g, bl] = [1.0, 0.55, 0.1];  // orange: p-p (Coulomb competing)
         } else {
-          [r, g, bl] = [0.45, 0.62, 0.88];
+          [r, g, bl] = [0.45, 0.62, 0.88]; // blue-gray: n-n
         }
-        const alpha = 0.12 + 0.65 * t * t;
+        const alpha = 0.3 + 0.65 * t;
         const base = bondCount * 6;
         this.bondPosArr[base]     = a.position.x;
         this.bondPosArr[base + 1] = a.position.y;
@@ -246,96 +379,86 @@ export class Scale2Nuclear implements IScale {
         this.bondColArr[base + 3] = r * alpha;
         this.bondColArr[base + 4] = g * alpha;
         this.bondColArr[base + 5] = bl * alpha;
-        bondCount++;
-
-        // Glow boost proportional to bond strength
-        if (!a.locked) {
-          const mat = a.mesh.material as THREE.MeshStandardMaterial;
-          mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 0.7 + 0.85 * t);
-        }
-        if (!b.locked) {
-          const mat = b.mesh.material as THREE.MeshStandardMaterial;
-          mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 0.7 + 0.85 * t);
-        }
+        bondCount += 1;
       }
     }
-
+    // Dashed beam line from incoming nucleon toward the nucleus center
+    const inc = this.incomingNucleon;
+    if (inc) {
+      const c = this.getNucleusCentroid();
+      const [r, g, bl] = inc.kind === 'proton' ? [0.35, 0.75, 1.0] : [0.6, 0.7, 0.85];
+      const base = bondCount * 6;
+      this.bondPosArr[base]     = inc.position.x;
+      this.bondPosArr[base + 1] = inc.position.y;
+      this.bondPosArr[base + 2] = 0.1;
+      this.bondPosArr[base + 3] = c.x;
+      this.bondPosArr[base + 4] = c.y;
+      this.bondPosArr[base + 5] = 0.1;
+      this.bondColArr[base]     = r * 0.3;
+      this.bondColArr[base + 1] = g * 0.3;
+      this.bondColArr[base + 2] = bl * 0.3;
+      this.bondColArr[base + 3] = r * 0.05;
+      this.bondColArr[base + 4] = g * 0.05;
+      this.bondColArr[base + 5] = bl * 0.05;
+      bondCount += 1;
+    }
     this.bondGeo.setDrawRange(0, bondCount * 2);
     (this.bondGeo.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     (this.bondGeo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
-
-    // Forming-nucleus labels: find connected clusters, match to known nuclei
-    const clusters = this.buildClusters();
-    let spriteIdx = 0;
-    for (const cluster of clusters) {
-      if (spriteIdx >= MAX_HINT_LABELS) {
-        break;
-      }
-      if (cluster.some((n) => n.locked)) {
-        continue; // already a completed nucleus
-      }
-      const protons = cluster.filter((n) => n.kind === 'proton').length;
-      const neutrons = cluster.length - protons;
-      const key = `${protons}p${neutrons}n`;
-      const info = NUCLEUS_DATA[key];
-      if (!info) {
-        continue;
-      }
-
-      const centroid = cluster
-        .reduce((acc, n) => acc.add(n.position), new THREE.Vector2())
-        .multiplyScalar(1 / cluster.length);
-
-      const canvas = this.hintCanvases[spriteIdx];
-      const ctx = canvas.getContext('2d')!;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'rgba(8, 16, 36, 0.82)';
-      ctx.beginPath();
-      ctx.roundRect(2, 2, canvas.width - 4, canvas.height - 4, 9);
-      ctx.fill();
-      ctx.font = 'bold 20px "Segoe UI", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = info.isEasterEgg ? '#f0abfc' : '#7dd3fc';
-      ctx.fillText(`→ ${info.symbol} ${info.name}`, canvas.width / 2, canvas.height / 2);
-      this.hintTextures[spriteIdx].needsUpdate = true;
-
-      const sprite = this.hintSprites[spriteIdx];
-      sprite.scale.set(2.8, 0.64, 1);
-      sprite.position.set(centroid.x, centroid.y + 1.0, 0.3);
-      spriteIdx++;
-    }
-    // Hide any unused sprites
-    for (let i = spriteIdx; i < MAX_HINT_LABELS; i++) {
-      this.hintSprites[i].scale.set(0, 0, 1);
-    }
   }
 
-  private buildClusters(): Nucleon[][] {
-    const visited = new Set<number>();
-    const clusters: Nucleon[][] = [];
-    for (let i = 0; i < this.nucleons.length; i++) {
-      if (visited.has(i)) {
-        continue;
-      }
-      const cluster: Nucleon[] = [];
-      const queue = [i];
-      visited.add(i);
-      while (queue.length > 0) {
-        const idx = queue.shift()!;
-        cluster.push(this.nucleons[idx]);
-        for (let j = 0; j < this.nucleons.length; j++) {
-          if (!visited.has(j) && this.nucleons[idx].position.distanceTo(this.nucleons[j].position) <= BOND_RANGE) {
-            visited.add(j);
-            queue.push(j);
-          }
-        }
-      }
-      if (cluster.length >= 2) {
-        clusters.push(cluster);
-      }
-    }
-    return clusters;
+  private initNameLabel(): void {
+    this.nameLabelCanvas = document.createElement('canvas');
+    this.nameLabelCanvas.width = 256;
+    this.nameLabelCanvas.height = 56;
+    this.nameLabelTexture = new THREE.CanvasTexture(this.nameLabelCanvas);
+    this.nameLabel = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: this.nameLabelTexture, transparent: true, depthTest: false }),
+    );
+    this.nameLabel.scale.set(3.2, 0.7, 1);
+    this.nameLabel.renderOrder = 3;
+    this.scene.add(this.nameLabel);
+  }
+
+  private updateNameLabel(): void {
+    if (!this.nameLabelCanvas || !this.nameLabelTexture || !this.nameLabel) return;
+    const locked = this.nucleons.filter((n) => n.locked);
+    const protons = locked.filter((n) => n.kind === 'proton').length;
+    const neutrons = locked.filter((n) => n.kind === 'neutron').length;
+    const key = `${protons}p${neutrons}n`;
+    const info = NUCLEUS_DATA[key];
+    const labelText = info ? `${info.symbol}  ${info.name}` : `${protons}p + ${neutrons}n`;
+    const centroid = this.getNucleusCentroid();
+    const radius = 0.95 + 0.68 * Math.sqrt(locked.length);
+    this.nameLabel.position.set(centroid.x, centroid.y + radius + 0.55, 0.3);
+    const ctx = this.nameLabelCanvas.getContext('2d')!;
+    ctx.clearRect(0, 0, 256, 56);
+    ctx.fillStyle = 'rgba(8, 16, 36, 0.80)';
+    ctx.beginPath();
+    ctx.roundRect(2, 2, 252, 52, 10);
+    ctx.fill();
+    ctx.font = 'bold 22px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = info ? (info.isEasterEgg ? '#f0abfc' : '#7dd3fc') : '#94a3b8';
+    ctx.fillText(labelText, 128, 28);
+    this.nameLabelTexture.needsUpdate = true;
+  }
+
+  // ── UI ────────────────────────────────────────────────────────────────
+
+  private setupActionBar(): void {
+    const actionBar = document.getElementById('action-bar')!;
+    actionBar.innerHTML = '';
+    actionBar.appendChild(this.makeButton('+ Proton', () => this.spawnNucleon('proton')));
+    actionBar.appendChild(this.makeButton('+ Neutron', () => this.spawnNucleon('neutron')));
+  }
+
+  private makeButton(label: string, onClick: () => void): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.textContent = label;
+    button.addEventListener('click', onClick);
+    return button;
   }
 
   private emitEducation(): void {
@@ -392,270 +515,11 @@ export class Scale2Nuclear implements IScale {
 
 <div class="edu-section">
   <div class="edu-section-title">Magic Numbers</div>
-  <p>Nucleons fill <span class="edu-highlight">nuclear shells</span> just as electrons fill atomic shells. Nuclei with 2, 8, 20, 28, 50, 82 protons or neutrons are exceptionally stable — these are "magic numbers". Helium-4 is doubly magic (Z=2, N=2) which is why it\'s the product of stellar helium burning. Keep building — exotic nuclei await.</p>
+  <p>Nucleons fill <span class="edu-highlight">nuclear shells</span> just as electrons fill atomic shells. Nuclei with 2, 8, 20, 28, 50, 82 protons or neutrons are exceptionally stable — these are "magic numbers". Helium-4 is doubly magic (Z=2, N=2) which is why it's the product of stellar helium burning. Keep building — exotic nuclei await.</p>
 </div>`,
-      hint: '🔬 Spawn protons and neutrons. Get 2 of each close together to form Helium-4 and unlock the next scale. Bigger combos may trigger easter eggs!',
+      hint: '⚛️ Add protons and neutrons one at a time. Each snaps into the growing nucleus. Reach 2p+2n to form Helium-4 and unlock the next scale.',
     });
-    EventBus.emit('edu:event', { text: 'Proton and neutron emerging from the quark scale — residual strong force active.' });
-  }
-
-  private setupActionBar(): void {
-    const actionBar = document.getElementById('action-bar')!;
-    actionBar.innerHTML = '';
-    actionBar.appendChild(this.makeButton('+ Proton', () => this.spawnNucleon('proton')));
-    actionBar.appendChild(this.makeButton('+ Neutron', () => this.spawnNucleon('neutron')));
-    actionBar.appendChild(this.makeButton('+ Energy boost', () => {
-      this.nucleons.forEach((nucleon) => {
-        if (!nucleon.locked) {
-          nucleon.velocity.add(new THREE.Vector2((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3));
-        }
-      });
-      EventBus.emit('edu:event', { text: 'A burst of kinetic energy jostled the nucleons.' });
-    }));
-  }
-
-  private makeButton(label: string, onClick: () => void): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.textContent = label;
-    button.addEventListener('click', onClick);
-    return button;
-  }
-
-  private spawnNucleon(kind: 'proton' | 'neutron', x?: number, y?: number): void {
-    if (this.nucleons.length >= MAX_NUCLEONS) {
-      return;
-    }
-    const color = kind === 'proton' ? 0x5bbcff : 0xbec8d8;
-    const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.34, 20, 20),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7 }),
-    );
-    const label = createNucleonLabel(kind);
-    label.position.set(0, 0, 0.35);
-    mesh.add(label);
-    const position = new THREE.Vector2(
-      x ?? (Math.random() - 0.5) * 8,
-      y ?? (Math.random() - 0.5) * 6,
-    );
-    mesh.position.set(position.x, position.y, 0);
-    this.scene.add(mesh);
-    this.nucleons.push({
-      kind,
-      mesh,
-      position,
-      velocity: new THREE.Vector2((Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6),
-      locked: false,
-      pulse: 0,
-    });
-    EventBus.emit('edu:event', { text: `${kind === 'proton' ? 'Proton' : 'Neutron'} added to the nucleus-building field.` });
-  }
-
-  private integrate(dt: number): void {
-    const free = this.nucleons.filter((nucleon) => !nucleon.locked);
-    const accelerations = new Map<Nucleon, THREE.Vector2>();
-    free.forEach((nucleon) => accelerations.set(nucleon, nucleon.position.clone().multiplyScalar(-0.04)));
-    for (let i = 0; i < free.length; i += 1) {
-      for (let j = i + 1; j < free.length; j += 1) {
-        const a = free[i];
-        const b = free[j];
-        const delta = b.position.clone().sub(a.position);
-        const dist = Math.max(delta.length(), 0.3);
-        const dir = delta.normalize();
-        const yukawa = 1.8 * Math.exp(-dist / 1.4) / (dist * dist + 0.25);
-        const repulsion = a.kind === b.kind && dist < 1.1 ? 2.4 / (dist * dist + 0.1) : 0;
-        const hardCore = dist < 0.65 ? 2.2 : 0;
-        const strength = yukawa - repulsion - hardCore;
-        const force = dir.multiplyScalar(strength);
-        accelerations.get(a)!.add(force);
-        accelerations.get(b)!.sub(force);
-      }
-    }
-
-    free.forEach((nucleon) => {
-      nucleon.velocity.addScaledVector(accelerations.get(nucleon)!, dt);
-      nucleon.velocity.multiplyScalar(0.992);
-      nucleon.position.addScaledVector(nucleon.velocity, dt * 2.8);
-      nucleon.mesh.position.set(nucleon.position.x, nucleon.position.y, 0);
-    });
-
-    if (this.completed) {
-      this.heliumPhase += dt * 1.5;
-      const locked = this.nucleons.filter((nucleon) => nucleon.locked);
-      const offsets = [
-        new THREE.Vector2(-0.45, 0.35),
-        new THREE.Vector2(0.45, 0.35),
-        new THREE.Vector2(-0.45, -0.35),
-        new THREE.Vector2(0.45, -0.35),
-      ];
-      locked.forEach((nucleon, index) => {
-        const wobble = new THREE.Vector2(Math.cos(this.heliumPhase + index) * 0.05, Math.sin(this.heliumPhase * 1.2 + index) * 0.05);
-        const target = this.heliumCenter.clone().add(offsets[index] ?? new THREE.Vector2()).add(wobble);
-        nucleon.position.lerp(target, 0.12);
-        nucleon.mesh.position.set(nucleon.position.x, nucleon.position.y, 0);
-        const material = nucleon.mesh.material as THREE.MeshStandardMaterial;
-        material.emissiveIntensity = 1 + Math.sin(this.heliumPhase * 4 + index) * 0.22;
-      });
-    }
-  }
-
-  private detectMilestones(): void {
-    if (!this.completed && this.nucleons.length >= 4) {
-      let heliumFormed = false;
-      for (let a = 0; a < this.nucleons.length && !heliumFormed; a += 1) {
-        for (let b = a + 1; b < this.nucleons.length && !heliumFormed; b += 1) {
-          for (let c = b + 1; c < this.nucleons.length && !heliumFormed; c += 1) {
-            for (let d = c + 1; d < this.nucleons.length; d += 1) {
-              const cluster = [this.nucleons[a], this.nucleons[b], this.nucleons[c], this.nucleons[d]];
-              const protons = cluster.filter((n) => n.kind === 'proton').length;
-              const neutrons = cluster.filter((n) => n.kind === 'neutron').length;
-              if (protons !== 2 || neutrons !== 2) {
-                continue;
-              }
-              const centroid = cluster.reduce((acc, nucleon) => acc.add(nucleon.position), new THREE.Vector2()).multiplyScalar(0.25);
-              if (cluster.some((nucleon) => nucleon.position.distanceTo(centroid) > 1.35)) {
-                continue;
-              }
-              cluster.forEach((nucleon) => {
-                nucleon.locked = true;
-                nucleon.velocity.set(0, 0);
-              });
-              this.heliumCenter.copy(centroid);
-              this.completed = true;
-              heliumFormed = true;
-              EventBus.emit('edu:event', { text: 'Helium-4 assembled. Mass defect converted into ≈28.3 MeV of binding energy.' });
-              EventBus.emit('toast', { title: 'Helium-4 nucleus complete', body: 'Two protons and two neutrons snapped into one of nature’s most stable light nuclei.' });
-              EventBus.emit('scale:complete', { scale: SCALE_INDEX });
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    for (const size of NUCLEUS_TARGET_SIZES) {
-      if (this.nucleons.length < size) {
-        continue;
-      }
-      const nucleusKeys = Object.keys(NUCLEUS_DATA).filter((key) => {
-        const info = NUCLEUS_DATA[key];
-        return info.protons + info.neutrons === size && !this.discoveredNuclei.has(key);
-      });
-      for (const key of nucleusKeys) {
-        this.searchForNucleus(NUCLEUS_DATA[key]);
-      }
-    }
-  }
-
-  private searchForNucleus(info: NucleusInfo): void {
-    const key = `${info.protons}p${info.neutrons}n`;
-    if (this.discoveredNuclei.has(key)) {
-      return;
-    }
-    const protonPool = this.nucleons.filter((nucleon) => nucleon.kind === 'proton');
-    const neutronPool = this.nucleons.filter((nucleon) => nucleon.kind === 'neutron');
-    if (protonPool.length < info.protons || neutronPool.length < info.neutrons) {
-      return;
-    }
-
-    const targetSize = info.protons + info.neutrons;
-    const neighborhoodRadius = 1.5 * Math.sqrt(targetSize);
-    for (let anchorIndex = 0; anchorIndex < this.nucleons.length; anchorIndex += 1) {
-      const anchor = this.nucleons[anchorIndex];
-      const remainingProtons = info.protons - (anchor.kind === 'proton' ? 1 : 0);
-      const remainingNeutrons = info.neutrons - (anchor.kind === 'neutron' ? 1 : 0);
-      if (remainingProtons < 0 || remainingNeutrons < 0) {
-        continue;
-      }
-
-      const nearby = this.nucleons.filter((candidate, candidateIndex) => (
-        candidateIndex > anchorIndex && candidate.position.distanceTo(anchor.position) <= neighborhoodRadius
-      ));
-      const nearbyProtons = nearby.filter((candidate) => candidate.kind === 'proton').length;
-      const nearbyNeutrons = nearby.length - nearbyProtons;
-      if (nearbyProtons < remainingProtons || nearbyNeutrons < remainingNeutrons) {
-        continue;
-      }
-
-      const cluster = [anchor];
-      if (this.collectNucleusCluster(nearby, 0, remainingProtons, remainingNeutrons, targetSize - 1, cluster, key)) {
-        return;
-      }
-    }
-  }
-
-  private collectNucleusCluster(
-    candidates: Nucleon[],
-    start: number,
-    remainingProtons: number,
-    remainingNeutrons: number,
-    remainingSlots: number,
-    cluster: Nucleon[],
-    key: string,
-  ): boolean {
-    if (remainingSlots === 0) {
-      this.tryRecordNucleus([...cluster]);
-      return this.discoveredNuclei.has(key);
-    }
-    if (candidates.length - start < remainingSlots) {
-      return false;
-    }
-
-    for (let index = start; index <= candidates.length - remainingSlots; index += 1) {
-      const candidate = candidates[index];
-      const nextProtons = remainingProtons - (candidate.kind === 'proton' ? 1 : 0);
-      const nextNeutrons = remainingNeutrons - (candidate.kind === 'neutron' ? 1 : 0);
-      if (nextProtons < 0 || nextNeutrons < 0) {
-        continue;
-      }
-
-      let availableProtons = 0;
-      let availableNeutrons = 0;
-      for (let remainingIndex = index + 1; remainingIndex < candidates.length; remainingIndex += 1) {
-        if (candidates[remainingIndex].kind === 'proton') {
-          availableProtons += 1;
-        } else {
-          availableNeutrons += 1;
-        }
-      }
-      if (availableProtons < nextProtons || availableNeutrons < nextNeutrons) {
-        continue;
-      }
-
-      cluster.push(candidate);
-      if (this.collectNucleusCluster(candidates, index + 1, nextProtons, nextNeutrons, remainingSlots - 1, cluster, key)) {
-        return true;
-      }
-      cluster.pop();
-    }
-
-    return false;
-  }
-
-  private tryRecordNucleus(cluster: Nucleon[]): void {
-    const protons = cluster.filter((n) => n.kind === 'proton').length;
-    const neutrons = cluster.filter((n) => n.kind === 'neutron').length;
-    const key = `${protons}p${neutrons}n`;
-    const info = NUCLEUS_DATA[key];
-    if (!info || this.discoveredNuclei.has(key)) {
-      return;
-    }
-    const centroid = cluster.reduce((acc, n) => acc.add(n.position), new THREE.Vector2()).multiplyScalar(1 / cluster.length);
-    const maxRadius = 0.75 * Math.sqrt(cluster.length);
-    if (cluster.some((n) => n.position.distanceTo(centroid) > maxRadius)) {
-      return;
-    }
-    this.discoveredNuclei.add(key);
-    this.showDiscoveryModal(info, protons, neutrons);
-    EventBus.emit('edu:event', { text: `${info.name} (${info.symbol}) detected — ${info.bindingEnergy} binding energy` });
-    EventBus.emit('toast', { title: `${info.name} formed`, body: `${protons} protons + ${neutrons} neutrons, BE = ${info.bindingEnergy}` });
-    if (key === '4p4n') {
-      window.setTimeout(() => {
-        EventBus.emit('edu:event', { text: 'Be-8 decayed: ⁸Be → 2×⁴He (8.2×10⁻¹⁷ s lifetime — simulated as 1.5s)' });
-        cluster.forEach((n) => {
-          n.locked = false;
-        });
-      }, 1500);
-    }
+    EventBus.emit('edu:event', { text: 'Proton ready at the nucleus — add nucleons to build upward.' });
   }
 
   private showDiscoveryModal(info: NucleusInfo, protons: number, neutrons: number): void {
@@ -693,7 +557,6 @@ export class Scale2Nuclear implements IScale {
     close.onclick = dismiss;
   }
 }
-
 function createBackdrop(): THREE.Points {
   const count = 200;
   const positions = new Float32Array(count * 3);
