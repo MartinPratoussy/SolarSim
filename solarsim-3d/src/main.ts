@@ -295,8 +295,18 @@ gridToggle.addEventListener('click', () => {
   gridToggle.classList.toggle('active', gravityGrid.mesh.visible);
 });
 
+// ── Drag detection (suppress click after a drag) ──────────────────────────
+let mouseDownX = 0, mouseDownY = 0;
+renderer.domElement.addEventListener('mousedown', (e) => {
+  mouseDownX = e.clientX;
+  mouseDownY = e.clientY;
+});
+
 // ── Click: select or place ────────────────────────────────────────────────
 renderer.domElement.addEventListener('click', (e) => {
+  // If the mouse moved more than 5 px since mousedown it was a drag — ignore.
+  if (Math.hypot(e.clientX - mouseDownX, e.clientY - mouseDownY) > 5) return;
+
   if (placingType !== 'none') {
     placeBody(e.clientX, e.clientY);
     return;
