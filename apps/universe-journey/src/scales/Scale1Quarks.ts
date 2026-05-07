@@ -240,6 +240,12 @@ export class Scale1Quarks implements IScale {
     });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.26, 20, 20), material);
     mesh.position.set(x, y, 0);
+
+    // Flavor letter sprite — sits just in front of the sphere
+    const labelSprite = createQuarkLabel(flavor, config.color);
+    labelSprite.position.set(0, 0, 0.3);
+    mesh.add(labelSprite);
+
     this.scene.add(mesh);
     const colorCharge = COLOR_ORDER[Math.floor(Math.random() * COLOR_ORDER.length)];
     const tangent = new THREE.Vector2(-(y || 0.1), x || 0.1).normalize().multiplyScalar((Math.random() - 0.5) * 0.7);
@@ -433,6 +439,29 @@ export class Scale1Quarks implements IScale {
       hadron.label.position.set(hadron.center.x, hadron.center.y + 1.05, 0);
     }
   }
+}
+
+function createQuarkLabel(flavor: Flavor, colorHex: number): THREE.Sprite {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d')!;
+  // Convert hex color to CSS
+  const r = (colorHex >> 16) & 0xff;
+  const g = (colorHex >> 8) & 0xff;
+  const b = colorHex & 0xff;
+  ctx.font = 'bold 38px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Slight dark shadow for readability
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillText(flavor, 33, 34);
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillText(flavor, 32, 32);
+  const texture = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.scale.set(0.42, 0.42, 1);
+  return sprite;
 }
 
 function createLabelSprite(text: string): THREE.Sprite {
