@@ -112,29 +112,71 @@ export class Scale1Quarks implements IScale {
 
   private emitEducation(): void {
     EventBus.emit('edu:update', {
-      title: 'Scale 1 — Quark Field (10⁻¹⁸ m)',
-      body: `Quarks are the fundamental constituents of protons and neutrons.
-They come in 6 flavours (up, down, strange, charm, bottom, top)
-and carry a property called colour charge — not actual colour,
-but the QCD equivalent of electric charge.
+      title: 'Scale 1 — Quark Field · 10⁻¹⁸ m',
+      body: `
+<div class="edu-section">
+  <p>You are at the smallest known scale of matter — <span class="edu-highlight">10⁻¹⁸ metres</span>, far smaller than an atomic nucleus. Here, the fundamental building blocks of protons and neutrons float freely in a sea of colour charge.</p>
+</div>
 
-The Strong Force binds quarks via gluons, the force-carrying
-particles of Quantum Chromodynamics (QCD). Unlike electromagnetism,
-the strong force gets STRONGER as quarks move apart — like a rubber
-band. This phenomenon is called confinement: quarks can never
-exist alone.
+<hr/>
 
-A proton = uud (2 up + 1 down)
-A neutron = udd (1 up + 2 down)`,
-      equation: `Cornell potential:
-V(r) = −(4αs/3r) + κr
+<div class="edu-section">
+  <div class="edu-section-title">Quark Flavours</div>
+  <div class="edu-card-grid">
+    <div class="edu-card">
+      <div class="edu-card-name">⬆ Up quark <span class="edu-tag">u</span></div>
+      <div class="edu-card-sub">Charge <span class="edu-highlight">+²⁄₃ e</span> · Mass ≈ 2.3 MeV/c²<br/>The lightest quark. Two ups + one down = <strong>Proton</strong>.</div>
+    </div>
+    <div class="edu-card">
+      <div class="edu-card-name">⬇ Down quark <span class="edu-tag">d</span></div>
+      <div class="edu-card-sub">Charge <span class="edu-highlight">−¹⁄₃ e</span> · Mass ≈ 4.8 MeV/c²<br/>One up + two downs = <strong>Neutron</strong>.</div>
+    </div>
+    <div class="edu-card">
+      <div class="edu-card-name">↯ Strange quark <span class="edu-tag">s</span></div>
+      <div class="edu-card-sub">Charge <span class="edu-highlight">−¹⁄₃ e</span> · Mass ≈ 95 MeV/c²<br/>Forms exotic hadrons — short-lived in nature.</div>
+    </div>
+  </div>
+</div>
 
-αs ≈ 0.118 (strong coupling constant)
-κ ≈ 0.18 GeV²/ℏc (string tension)
+<hr/>
 
-Proton mass: 938.3 MeV/c²
-(mostly from binding energy, not quark masses!)`,
-      hint: '👆 Spawn quarks below. 3 quarks close together automatically bind — gluons resolve their colour charges in real time.',
+<div class="edu-section">
+  <div class="edu-section-title">Colour Charge</div>
+  <p>Every quark carries a <span class="edu-highlight">colour charge</span> — nothing to do with visible colour, but an analogy for the three types of strong charge in QCD.</p>
+  <div class="edu-pill-row">
+    <span class="edu-pill pill-red">● Red</span>
+    <span class="edu-pill pill-green">● Green</span>
+    <span class="edu-pill pill-blue">● Blue</span>
+  </div>
+  <p style="margin-top:5px">A stable hadron must be <span class="edu-highlight">colour-neutral</span> (Red + Green + Blue = "white"). Gluons continuously swap colour charge between quarks to maintain this balance.</p>
+</div>
+
+<hr/>
+
+<div class="edu-section">
+  <div class="edu-section-title">Confinement</div>
+  <p>The strong force behaves like a <span class="edu-highlight">rubber band</span>: the farther quarks pull apart, the stronger the restoring force. Beyond a critical distance, the energy stored in the "string" is enough to <em>create a new quark pair</em> — quarks can never be isolated. This is why free quarks have never been observed.</p>
+</div>
+
+<hr/>
+
+<div class="edu-section">
+  <div class="edu-section-title">The Proton Mass Mystery</div>
+  <p>A proton has mass 938 MeV/c². The three quarks inside it total only ≈ 9 MeV/c². The remaining <span class="edu-highlight">99% comes from the binding energy</span> of the gluon field — a beautiful demonstration that <em>E = mc²</em> runs in both directions.</p>
+</div>`,
+      equation: `Cornell potential (quark–quark):
+V(r) = −(4αs / 3r) + κr
+
+  αs ≈ 0.118   strong coupling constant
+  κ  ≈ 0.18 GeV²/ℏc   string tension
+  r  = quark separation
+
+First term: Coulomb-like attraction at short range
+Second term: linear confinement at long range
+
+Proton  = uud   mass 938.3 MeV/c²
+Neutron = udd   mass 939.6 MeV/c²`,
+      hint: '👆 Spawn quarks with the buttons below. Three quarks close together will bind automatically — gluons resolve their colour in real time.',
     });
     EventBus.emit('edu:event', { text: 'Spawn quarks and let confinement weave them into hadrons.' });
   }

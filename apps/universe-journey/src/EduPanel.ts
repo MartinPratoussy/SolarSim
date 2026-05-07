@@ -15,9 +15,11 @@ export class EduPanel {
   constructor() {
     EventBus.on('edu:update', ({ title, body, equation, hint }) => {
       this.title.textContent = title;
-      this.body.textContent = body;
+      this.body.innerHTML = body;
       this.equation.textContent = equation ?? '';
+      this.equation.style.display = equation ? 'block' : 'none';
       this.hint.textContent = hint ?? '';
+      this.hint.style.display = hint ? 'block' : 'none';
       this.events.innerHTML = '';
       this.progressContainer.style.display = 'none';
     });
