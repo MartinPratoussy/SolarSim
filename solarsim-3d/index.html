@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SolarSim 3D</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: #fff; }
+      canvas { display: block; }
+
+      /* ── Toolbar ── */
+      #toolbar {
+        position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+        display: flex; gap: 8px; background: rgba(0,0,0,0.6);
+        border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 8px 12px;
+        backdrop-filter: blur(8px); z-index: 10;
+      }
+      #toolbar button {
+        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+        color: #fff; border-radius: 8px; padding: 6px 12px; cursor: pointer;
+        font-size: 13px; transition: background 0.15s;
+      }
+      #toolbar button:hover { background: rgba(255,255,255,0.2); }
+      #toolbar button.active { background: rgba(99,179,255,0.35); border-color: #63b3ff; }
+
+      /* ── Time controls ── */
+      #time-controls {
+        position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+        display: flex; align-items: center; gap: 8px;
+        background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 12px; padding: 8px 16px; backdrop-filter: blur(8px); z-index: 10;
+      }
+      #time-controls button {
+        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+        color: #fff; border-radius: 6px; padding: 4px 10px; cursor: pointer;
+        font-size: 12px; transition: background 0.15s;
+      }
+      #time-controls button:hover { background: rgba(255,255,255,0.2); }
+      #time-controls button.active { background: rgba(99,255,160,0.3); border-color: #63ffa0; }
+      #time-display { font-size: 12px; color: #aaa; min-width: 120px; text-align: center; }
+
+      /* ── Info panel ── */
+      #info-panel {
+        position: fixed; right: 16px; top: 16px; width: 260px;
+        background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 12px; padding: 16px; backdrop-filter: blur(8px);
+        z-index: 10; display: none;
+      }
+      #info-panel h2 { font-size: 15px; margin-bottom: 10px; color: #63b3ff; }
+      #info-panel .stat { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
+      #info-panel .stat span:last-child { color: #ccc; }
+      #info-panel .edu-text { margin-top: 12px; font-size: 12px; color: #aaa; line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; }
+      #info-panel .formula { font-size: 11px; color: #63ffa0; font-family: monospace; margin-top: 6px; display: none; }
+      #formula-toggle { margin-top: 8px; font-size: 11px; color: #63b3ff; cursor: pointer; text-decoration: underline; background: none; border: none; color: #63b3ff; }
+
+      /* ── Event popup ── */
+      #event-popup {
+        position: fixed; left: 16px; bottom: 70px; width: 280px;
+        background: rgba(20,20,40,0.92); border: 1px solid rgba(99,179,255,0.4);
+        border-radius: 12px; padding: 14px 16px; backdrop-filter: blur(8px);
+        z-index: 20; display: none; animation: slideIn 0.3s ease;
+      }
+      @keyframes slideIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+      #event-popup h3 { font-size: 13px; color: #63b3ff; margin-bottom: 6px; }
+      #event-popup p { font-size: 12px; color: #ccc; line-height: 1.5; }
+      #event-popup .formula { font-size: 11px; color: #63ffa0; font-family: monospace; margin-top: 6px; }
+      #popup-close { position: absolute; top: 8px; right: 10px; background: none; border: none; color: #888; cursor: pointer; font-size: 14px; }
+
+      /* ── Tooltip ── */
+      #tooltip {
+        position: fixed; pointer-events: none; background: rgba(0,0,0,0.8);
+        border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+        padding: 5px 9px; font-size: 11px; color: #fff; z-index: 30; display: none;
+      }
+
+      /* ── Scale toggle ── */
+      #scale-toggle {
+        position: fixed; left: 16px; top: 16px;
+        background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 8px; padding: 6px 12px; backdrop-filter: blur(8px);
+        z-index: 10; font-size: 12px; cursor: pointer; color: #fff;
+      }
+      #scale-toggle:hover { background: rgba(255,255,255,0.1); }
+    </style>
+  </head>
+  <body>
+
+    <!-- Sandbox toolbar -->
+    <div id="toolbar">
+      <button data-type="none" class="active">👆 Select</button>
+      <button data-type="planet">🪐 Planet</button>
+      <button data-type="moon">🌙 Moon</button>
+      <button data-type="star">⭐ Star</button>
+      <button data-type="asteroid">🪨 Asteroid</button>
+      <button data-type="comet">☄️ Comet</button>
+      <button data-type="blackhole">⚫ Black Hole</button>
+    </div>
+
+    <!-- Time controls -->
+    <div id="time-controls">
+      <button data-speed="0">⏸ Pause</button>
+      <button data-speed="1" class="active">1×</button>
+      <button data-speed="10">10×</button>
+      <button data-speed="100">100×</button>
+      <button data-speed="1000">1000×</button>
+      <span id="time-display">Day 0</span>
+    </div>
+
+    <!-- Info / education panel -->
+    <div id="info-panel">
+      <h2 id="info-name">—</h2>
+      <div class="stat"><span>Mass</span><span id="info-mass">—</span></div>
+      <div class="stat"><span>Speed</span><span id="info-speed">—</span></div>
+      <div class="stat"><span>Distance from star</span><span id="info-dist">—</span></div>
+      <div class="stat"><span>Orbital period</span><span id="info-period">—</span></div>
+      <div class="edu-text" id="info-edu"></div>
+      <div class="formula" id="info-formula"></div>
+      <button id="formula-toggle">Show formula</button>
+    </div>
+
+    <!-- Event popup -->
+    <div id="event-popup">
+      <button id="popup-close">✕</button>
+      <h3 id="popup-title"></h3>
+      <p id="popup-body"></p>
+      <div class="formula" id="popup-formula"></div>
+    </div>
+
+    <!-- Hover tooltip -->
+    <div id="tooltip"></div>
+
+    <!-- Scale toggle -->
+    <button id="scale-toggle">🔭 Artistic Scale</button>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

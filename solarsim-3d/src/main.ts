@@ -1,0 +1,276 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Body, keplerVelocity, metersToScene, type BodyType } from './Body';
+import { SolarSystem } from './SolarSystem';
+import { SOLAR_DATA, initialPosition } from './solarData';
+import { BASE_TIMESTEP } from './constants';
+import { createStarfield, createSunGlow } from './visuals';
+import { updateInfoPanel, showTooltip, hideTooltip } from './ui';
+import { EventBus } from './events';
+
+// ── Renderer & Scene ──────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+// ── Camera ────────────────────────────────────────────────────────────────
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 100000);
+camera.position.set(0, 250, 500);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 5;
+controls.maxDistance = 8000;
+
+// ── Lights ────────────────────────────────────────────────────────────────
+const sunLight = new THREE.PointLight(0xfff5c0, 3, 0, 1.5);
+scene.add(sunLight);
+scene.add(new THREE.AmbientLight(0x111122, 0.8));
+
+// ── Starfield ─────────────────────────────────────────────────────────────
+createStarfield(scene);
+
+// ── Solar system ──────────────────────────────────────────────────────────
+const solar = new SolarSystem(scene);
+
+// Sun
+const sun = new Body({
+  name: 'Sun', type: 'star',
+  mass: SOLAR_DATA.sun.mass,
+  realRadius: SOLAR_DATA.sun.realRadius,
+  drawRadius: SOLAR_DATA.sun.drawRadius,
+  color: SOLAR_DATA.sun.color,
+  position: new THREE.Vector3(0, 0, 0),
+  velocity: new THREE.Vector3(0, 0, 0),
+}, scene);
+(sun.mesh.material as THREE.MeshStandardMaterial).emissive = new THREE.Color(0xfff5c0);
+(sun.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 1;
+solar.add(sun);
+createSunGlow(scene, sun.position, sun.drawRadius);
+
+// Planets
+for (const pd of SOLAR_DATA.planets) {
+  const pos = initialPosition(pd);
+  const vel = keplerVelocity(pos, SOLAR_DATA.sun.mass, pd.inclination);
+  const planet = new Body({
+    name: pd.name, type: 'planet',
+    mass: pd.mass,
+    realRadius: pd.realRadius,
+    drawRadius: pd.drawRadius,
+    color: pd.color,
+    position: pos,
+    velocity: vel,
+  }, scene);
+  solar.add(planet);
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+let speedMultiplier = 1;
+let selectedBody: Body | null = null;
+let placingType: BodyType | 'none' = 'none';
+let followMode = false;
+let artisticScale = true;
+let simulatedDays = 0;
+
+// ── Raycaster ─────────────────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+// ── Toolbar ───────────────────────────────────────────────────────────────
+document.querySelectorAll<HTMLButtonElement>('#toolbar button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    placingType = (btn.dataset.type as BodyType | 'none') ?? 'none';
+    document.querySelectorAll('#toolbar button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// ── Time controls ─────────────────────────────────────────────────────────
+document.querySelectorAll<HTMLButtonElement>('#time-controls button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    speedMultiplier = Number(btn.dataset.speed);
+    document.querySelectorAll('#time-controls button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// ── Scale toggle ──────────────────────────────────────────────────────────
+const scaleToggle = document.getElementById('scale-toggle')!;
+scaleToggle.addEventListener('click', () => {
+  artisticScale = !artisticScale;
+  scaleToggle.textContent = artisticScale ? '🔭 Artistic Scale' : '🔭 True Scale';
+  for (const body of solar.bodies) {
+    if (body.type === 'star' || body.type === 'blackhole') continue;
+    const newR = artisticScale
+      ? body.drawRadius
+      : Math.max(0.05, metersToScene(body.realRadius) * 300);
+    body.mesh.geometry.dispose();
+    body.mesh.geometry = new THREE.SphereGeometry(newR, 24, 24);
+  }
+});
+
+// ── Click: select or place ─────────────────────────────────────────────────
+renderer.domElement.addEventListener('click', (e) => {
+  mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  if (placingType !== 'none') {
+    placeBody(e.clientX, e.clientY);
+    return;
+  }
+
+  const meshes = solar.bodies.map(b => b.mesh);
+  const hits = raycaster.intersectObjects(meshes);
+  if (hits.length > 0) {
+    const body = hits[0].object.userData.body as Body;
+    selectedBody = body;
+    followMode = false;
+    const star = solar.findStar();
+    updateInfoPanel(body, star?.mass ?? 0);
+    EventBus.emit('select:body', { body });
+  } else {
+    selectedBody = null;
+    updateInfoPanel(null, 0);
+    EventBus.emit('select:none', {});
+  }
+});
+
+// ── Right-click: delete ───────────────────────────────────────────────────
+renderer.domElement.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(solar.bodies.map(b => b.mesh));
+  if (hits.length > 0) {
+    const body = hits[0].object.userData.body as Body;
+    if (body.type !== 'star') {
+      if (selectedBody === body) { selectedBody = null; updateInfoPanel(null, 0); }
+      solar.remove(body);
+    }
+  }
+});
+
+// ── Hover tooltip ─────────────────────────────────────────────────────────
+renderer.domElement.addEventListener('mousemove', (e) => {
+  mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(solar.bodies.map(b => b.mesh));
+  if (hits.length > 0) {
+    showTooltip(hits[0].object.userData.body as Body, e.clientX, e.clientY);
+  } else {
+    hideTooltip();
+  }
+});
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'f' || e.key === 'F') {
+    followMode = selectedBody !== null && !followMode;
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBody && selectedBody.type !== 'star') {
+    solar.remove(selectedBody);
+    selectedBody = null;
+    updateInfoPanel(null, 0);
+  }
+});
+
+// ── Place body ────────────────────────────────────────────────────────────
+let bodyCounter = 0;
+
+const BODY_PRESETS: Record<string, { mass: number; realRadius: number; drawRadius: number; color: number }> = {
+  planet:    { mass: 6e24,   realRadius: 6.4e6,  drawRadius: 1.0, color: 0x4fa3e0 },
+  moon:      { mass: 7.3e22, realRadius: 1.74e6, drawRadius: 0.4, color: 0xbbbbbb },
+  star:      { mass: 2e30,   realRadius: 7e8,    drawRadius: 5.0, color: 0xfff5c0 },
+  asteroid:  { mass: 1e15,   realRadius: 5e4,    drawRadius: 0.2, color: 0x888888 },
+  comet:     { mass: 1e13,   realRadius: 2e3,    drawRadius: 0.2, color: 0xaaddff },
+  blackhole: { mass: 1e31,   realRadius: 3e9,    drawRadius: 2.0, color: 0x000000 },
+};
+
+function placeBody(screenX: number, screenY: number) {
+  const vec = new THREE.Vector3(
+    (screenX / window.innerWidth) * 2 - 1,
+    -(screenY / window.innerHeight) * 2 + 1,
+    0.5
+  );
+  vec.unproject(camera);
+  const dir = vec.sub(camera.position).normalize();
+  const t = -camera.position.y / dir.y;
+  if (!isFinite(t) || t < 0) return;
+  const worldPos = camera.position.clone().addScaledVector(dir, t);
+  worldPos.y = 0;
+
+  const type = placingType as BodyType;
+  const preset = BODY_PRESETS[type];
+  if (!preset) return;
+
+  const star = solar.findStar();
+  let vel = new THREE.Vector3();
+  if (star && type !== 'star' && type !== 'blackhole' && type !== 'asteroid') {
+    const relPos = worldPos.clone().sub(star.position);
+    vel = keplerVelocity(relPos, star.mass);
+    vel.add(star.velocity);
+  }
+
+  bodyCounter++;
+  const body = new Body({
+    name: `${type.charAt(0).toUpperCase() + type.slice(1)} ${bodyCounter}`,
+    type, ...preset,
+    position: worldPos,
+    velocity: vel,
+  }, scene);
+  solar.add(body);
+
+  if (type === 'blackhole') EventBus.emit('edu:blackhole', {});
+}
+
+// ── Time display ──────────────────────────────────────────────────────────
+const timeDisplay = document.getElementById('time-display')!;
+
+// ── Resize ────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── Animate ───────────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = Math.min(clock.getDelta(), 0.05);
+  const dt = BASE_TIMESTEP * speedMultiplier * delta;
+
+  if (speedMultiplier > 0) {
+    solar.update(dt);
+    simulatedDays += dt / 86400;
+  }
+
+  sunLight.position.copy(sun.position);
+
+  if (followMode && selectedBody) {
+    controls.target.copy(selectedBody.mesh.position);
+  }
+
+  if (selectedBody) {
+    const star = solar.findStar();
+    updateInfoPanel(selectedBody, star?.mass ?? 0);
+  }
+
+  const d = Math.floor(simulatedDays);
+  timeDisplay.textContent = d < 730
+    ? `Day ${d.toLocaleString()}`
+    : `Year ${(d / 365.25).toFixed(1)}`;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
