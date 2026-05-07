@@ -4,11 +4,9 @@
   "description": "Interactive educational physics sandbox — quarks to solar system",
   "private": true,
   "scripts": {
-    "dev": "concurrently --names \"journey,solar\" --prefix-colors \"cyan,yellow\" \"npm run dev --prefix apps/universe-journey\" \"npm run dev --prefix apps/solar-system\"",
-    "dev:journey": "npm run dev --prefix apps/universe-journey",
-    "dev:solar": "npm run dev --prefix apps/solar-system",
-    "build": "npm run build --prefix apps/universe-journey && npm run build --prefix apps/solar-system",
-    "install:all": "npm install --prefix apps/universe-journey && npm install --prefix apps/solar-system"
+    "dev": "npm run dev --prefix apps/universe-journey",
+    "build": "npm run build --prefix apps/universe-journey",
+    "install:all": "npm install --prefix apps/universe-journey"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

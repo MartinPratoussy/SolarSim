@@ -416,3 +416,223 @@ button {
   80% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+.solar-ui {
+  display: none;
+}
+
+#toolbar {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 8px 12px;
+  backdrop-filter: blur(8px);
+  z-index: 11;
+}
+
+#toolbar button,
+#time-controls button,
+#scale-toggle,
+#grid-toggle,
+#formula-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#toolbar button:hover,
+#time-controls button:hover,
+#scale-toggle:hover,
+#grid-toggle:hover,
+#formula-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+#toolbar button.active {
+  background: rgba(99, 179, 255, 0.35);
+  border-color: #63b3ff;
+}
+
+#time-controls {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 8px 16px;
+  backdrop-filter: blur(8px);
+  z-index: 11;
+}
+
+#time-controls button.active {
+  background: rgba(99, 255, 160, 0.3);
+  border-color: #63ffa0;
+}
+
+#time-display {
+  font-size: 12px;
+  color: #aaa;
+  min-width: 120px;
+  text-align: center;
+}
+
+#info-panel {
+  position: fixed;
+  left: 16px;
+  top: 104px;
+  width: 280px;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 16px;
+  backdrop-filter: blur(8px);
+  z-index: 11;
+}
+
+#info-panel h2 {
+  font-size: 15px;
+  margin: 0 0 10px;
+  color: #63b3ff;
+}
+
+#info-panel .stat {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+#info-panel .stat span:last-child {
+  color: #ccc;
+}
+
+#info-panel .edu-text {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #aaa;
+  line-height: 1.5;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 10px;
+}
+
+#info-panel .formula,
+#event-popup .formula {
+  font-size: 11px;
+  color: #63ffa0;
+  font-family: monospace;
+  margin-top: 6px;
+  display: none;
+}
+
+.solar-inline-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+#formula-toggle {
+  font-size: 11px;
+  color: #63b3ff;
+}
+
+#info-link {
+  display: none;
+  font-size: 11px;
+  color: #63b3ff;
+  text-decoration: none;
+  border: 1px solid rgba(99, 179, 255, 0.35);
+  border-radius: 5px;
+  padding: 3px 8px;
+}
+
+#event-popup {
+  position: fixed;
+  left: 16px;
+  bottom: 78px;
+  width: 280px;
+  background: rgba(20, 20, 40, 0.92);
+  border: 1px solid rgba(99, 179, 255, 0.4);
+  border-radius: 12px;
+  padding: 14px 16px;
+  backdrop-filter: blur(8px);
+  z-index: 20;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#event-popup h3 {
+  font-size: 13px;
+  color: #63b3ff;
+  margin: 0 0 6px;
+}
+
+#event-popup p {
+  font-size: 12px;
+  color: #ccc;
+  line-height: 1.5;
+  margin: 0;
+}
+
+#popup-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+#tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 11px;
+  color: #fff;
+  z-index: 30;
+}
+
+#scale-toggle,
+#grid-toggle {
+  position: fixed;
+  left: 16px;
+  z-index: 11;
+  font-size: 12px;
+}
+
+#scale-toggle {
+  top: 16px;
+}
+
+#grid-toggle {
+  top: 56px;
+}
+
+#grid-toggle.active {
+  background: rgba(0, 204, 255, 0.2);
+  border-color: #00ccff;
+  color: #00ccff;
+}

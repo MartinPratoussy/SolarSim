@@ -1,6 +1,6 @@
 import { Body } from './Body';
 import { AU } from './constants';
-import { EventBus } from './events';
+import { EventBus } from './solarEvents';
 import { BODY_DETAILS, TYPE_WIKI } from './solarData';
 
 // ── Info panel elements ──────────────────────────────────────────────────

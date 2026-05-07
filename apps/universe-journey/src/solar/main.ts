@@ -14,7 +14,7 @@ import {
   applyStarVisuals, createGravityGrid, LensDistortionShader,
 } from './visuals';
 import { updateInfoPanel, showTooltip, hideTooltip } from './ui';
-import { EventBus } from './events';
+import { EventBus } from './solarEvents';
 
 // ── Renderer & Scene ──────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });

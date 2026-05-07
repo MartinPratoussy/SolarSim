@@ -7,7 +7,7 @@ import { Scale2Nuclear } from './scales/Scale2Nuclear';
 import { Scale3Atomic } from './scales/Scale3Atomic';
 import { Scale4GasCloud } from './scales/Scale4GasCloud';
 import { Scale5Stellar } from './scales/Scale5Stellar';
-import { Scale6Handoff } from './scales/Scale6Handoff';
+import { Scale6SolarSystem } from './scales/Scale6SolarSystem';
 
 const container = document.getElementById('canvas-container');
 const skipButton = document.getElementById('skip-btn');
@@ -28,7 +28,7 @@ const scales = [
   new Scale3Atomic(),
   new Scale4GasCloud(),
   new Scale5Stellar(),
-  new Scale6Handoff(),
+  new Scale6SolarSystem(),
 ];
 
 const scaleManager = new ScaleManager(scales, container, renderer);

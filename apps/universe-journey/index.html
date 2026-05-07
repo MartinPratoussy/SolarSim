@@ -40,6 +40,55 @@
 
   <div id="toast"></div>
 
+  <div id="toolbar" class="solar-ui">
+    <button data-type="none" class="active">👆 Select</button>
+    <button data-type="planet">🪐 Planet</button>
+    <button data-type="moon">🌙 Moon</button>
+    <button data-type="star">⭐ Star</button>
+    <button data-type="asteroid">🪨 Asteroid</button>
+    <button data-type="comet">☄️ Comet</button>
+    <button data-type="blackhole">⚫ Black Hole</button>
+  </div>
+
+  <div id="time-controls" class="solar-ui">
+    <button data-speed="0">⏸ Pause</button>
+    <button data-speed="1" class="active">1×</button>
+    <button data-speed="10">10×</button>
+    <button data-speed="100">100×</button>
+    <button data-speed="1000">1000×</button>
+    <span id="time-display">Day 0</span>
+  </div>
+
+  <div id="info-panel" class="solar-ui">
+    <h2 id="info-name">—</h2>
+    <div class="stat"><span>Mass</span><span id="info-mass">—</span></div>
+    <div class="stat"><span>Radius</span><span id="info-radius">—</span></div>
+    <div class="stat"><span>Speed</span><span id="info-speed">—</span></div>
+    <div class="stat"><span>Distance from star</span><span id="info-dist">—</span></div>
+    <div class="stat"><span>Orbital period</span><span id="info-period">—</span></div>
+    <div class="stat" id="row-gravity"><span>Surface gravity</span><span id="info-gravity">—</span></div>
+    <div class="stat" id="row-temp"><span>Temperature</span><span id="info-temp">—</span></div>
+    <div class="stat" id="row-moons"><span>Known moons</span><span id="info-moons">—</span></div>
+    <div class="edu-text" id="info-edu"></div>
+    <div class="formula" id="info-formula"></div>
+    <div class="solar-inline-actions">
+      <button id="formula-toggle">Show formula</button>
+      <a id="info-link" href="#" target="_blank" rel="noopener noreferrer">🔗 Wikipedia</a>
+    </div>
+  </div>
+
+  <div id="event-popup" class="solar-ui">
+    <button id="popup-close">✕</button>
+    <h3 id="popup-title"></h3>
+    <p id="popup-body"></p>
+    <div class="formula" id="popup-formula"></div>
+  </div>
+
+  <div id="tooltip" class="solar-ui"></div>
+
+  <button id="scale-toggle" class="solar-ui">🔭 Artistic Scale</button>
+  <button id="grid-toggle" class="solar-ui">🌐 Gravity Grid</button>
+
   <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

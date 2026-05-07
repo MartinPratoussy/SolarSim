@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Body, type BodyType } from './Body';
 import { rk4Step } from './physics';
 import { AU, G } from './constants';
-import { EventBus } from './events';
+import { EventBus } from './solarEvents';
 
 const POSITION_BOUND = 50 * AU; // bodies beyond 50 AU (in meters) are removed
 
