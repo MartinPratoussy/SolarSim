@@ -990,7 +990,7 @@ button {
 /* ─── Scale 3 Atomic — Periodic Table Panel ─────────────────────────────── */
 #atomic-table {
   position: fixed;
-  bottom: 76px;
+  bottom: 96px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(4, 12, 28, 0.92);
