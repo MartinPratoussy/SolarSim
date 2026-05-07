@@ -64,6 +64,7 @@ export class EduPanel {
 
   private setCollapsed(collapsed: boolean, toggleBtn: HTMLButtonElement): void {
     this.panel.classList.toggle('collapsed', collapsed);
+    document.body.classList.toggle('edu-open-mobile', !collapsed);
     toggleBtn.textContent = collapsed ? '▶' : '◀';
     this.mobileToggle.textContent = collapsed ? 'Show explanations' : 'Hide explanations';
     this.mobileToggle.setAttribute('aria-pressed', (!collapsed).toString());

@@ -1121,12 +1121,18 @@ button {
   }
 
   #edu-panel {
-    width: min(86vw, 320px);
-    padding: 16px 12px;
+    left: 0;
+    right: 0;
+    width: 100vw;
+    max-width: 100vw;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    padding: calc(52px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+    z-index: 40;
   }
 
   #edu-panel.collapsed {
-    transform: translateX(min(86vw, 320px));
+    transform: translateX(100vw);
   }
 
   #edu-toggle-btn {
@@ -1138,7 +1144,7 @@ button {
     position: fixed;
     top: calc(54px + env(safe-area-inset-top));
     right: 8px;
-    z-index: 12;
+    z-index: 41;
     background: rgba(0, 20, 60, 0.9);
     border: 1px solid rgba(99, 179, 255, 0.45);
     color: #9ed5ff;
@@ -1146,6 +1152,18 @@ button {
     padding: 7px 12px;
     font-size: 11px;
     font-weight: 600;
+  }
+
+  body.edu-open-mobile #scale-hud,
+  body.edu-open-mobile #action-bar,
+  body.edu-open-mobile #progress-bar-container,
+  body.edu-open-mobile .stellar-widgets,
+  body.edu-open-mobile #atomic-table,
+  body.edu-open-mobile #toolbar,
+  body.edu-open-mobile #scale-toggle,
+  body.edu-open-mobile #grid-toggle {
+    opacity: 0;
+    pointer-events: none;
   }
 
   #action-bar {
