@@ -218,7 +218,7 @@ export function createGravityGrid(scene: THREE.Scene) {
   geo.setAttribute('color',    new THREE.BufferAttribute(colors,    3));
 
   const mat = new THREE.LineBasicMaterial({
-    vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false,
+    vertexColors: true, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false,
   });
 
   const mesh = new THREE.LineSegments(geo, mat);
@@ -232,7 +232,7 @@ export function createGravityGrid(scene: THREE.Scene) {
   const disp  = new Float32Array(TOTAL); // displacement magnitude for coloring
 
   function update(bodies: Body[]) {
-    const K = 120; // visualization pull strength (scene units)
+    const K = 300; // stronger pull so the Sun's well is clearly visible
 
     for (let i = 0; i < TOTAL; i++) {
       const ox = origX[i], oy = origY[i], oz = origZ[i];
@@ -263,7 +263,7 @@ export function createGravityGrid(scene: THREE.Scene) {
       const p = seg[s];
       posAttr.setXYZ(s, dispX[p], dispY[p], dispZ[p]);
       // Color: dim blue far → bright cyan/white near mass
-      const t = Math.min(disp[p] / 30, 1); // 0 = undisturbed, 1 = strongly pulled
+      const t = Math.min(disp[p] / 60, 1); // 0 = undisturbed, 1 = strongly pulled
       colAttr.setXYZ(s, t * 0.6, 0.15 + t * 0.65, 0.4 + t * 0.6);
     }
     posAttr.needsUpdate = true;

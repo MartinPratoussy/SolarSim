@@ -51,8 +51,11 @@ scene.add(new THREE.AmbientLight(0x334466, 0.6)); // subtle blue-space fill
 // ── Starfield ─────────────────────────────────────────────────────────────
 createStarfield(scene);
 
-// ── Gravity grid ──────────────────────────────────────────────────────────
+// ── Gravity grid (overlay scene — rendered AFTER composer so lens never warps it) ──
+const overlayScene = new THREE.Scene();
 const gravityGrid = createGravityGrid(scene);
+scene.remove(gravityGrid.mesh);      // pull out of main scene
+overlayScene.add(gravityGrid.mesh);  // into overlay, rendered post-lens
 
 // ── Solar system ──────────────────────────────────────────────────────────
 const solar = new SolarSystem(scene);
@@ -447,6 +450,12 @@ function animate() {
 
   controls.update();
   composer.render();
+  // Grid overlay: rendered after post-processing so lens distortion never affects it
+  if (gravityGrid.mesh.visible) {
+    renderer.autoClear = false;
+    renderer.render(overlayScene, camera);
+    renderer.autoClear = true;
+  }
 }
 
 animate();
