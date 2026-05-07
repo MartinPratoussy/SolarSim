@@ -183,13 +183,28 @@ renderer.domElement.addEventListener('contextmenu', (e) => {
   }
 });
 
-// ── Hover tooltip ─────────────────────────────────────────────────────────
+// ── Hover tooltip — screen-space proximity (handles small planets reliably) ──
 renderer.domElement.addEventListener('mousemove', (e) => {
-  mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(solar.bodies.map(b => b.mesh));
-  if (hits.length > 0) showTooltip(hits[0].object.userData.body as Body, e.clientX, e.clientY);
+  const hw = window.innerWidth  / 2;
+  const hh = window.innerHeight / 2;
+  const mx = e.clientX;
+  const my = e.clientY;
+  const THRESHOLD_PX = 48; // pixels
+
+  let nearest: Body | null = null;
+  let nearestDist = THRESHOLD_PX;
+
+  for (const body of solar.bodies) {
+    const screenPos = body.mesh.position.clone().project(camera);
+    // project() gives NDC [-1,1]; convert to pixels
+    const sx = (screenPos.x + 1) * hw;
+    const sy = (1 - screenPos.y) * hh;
+    if (screenPos.z > 1) continue; // behind camera
+    const d = Math.hypot(sx - mx, sy - my);
+    if (d < nearestDist) { nearestDist = d; nearest = body; }
+  }
+
+  if (nearest) showTooltip(nearest, e.clientX, e.clientY);
   else hideTooltip();
 });
 

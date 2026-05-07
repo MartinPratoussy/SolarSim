@@ -30,7 +30,8 @@ export class Body {
 
   mesh: THREE.Mesh;
   trailLine: THREE.Line;
-  private trailBuffer: Float32Array;
+  private trailBuffer: Float32Array;   // ring buffer (SI scene positions)
+  private trailDisplay: Float32Array;  // ordered for GPU, separate from ring buffer
   private trailIndex = 0;
   private trailFull = false;
 
@@ -53,14 +54,15 @@ export class Body {
       ? new THREE.MeshBasicMaterial({ color: 0x000000 })
       : new THREE.MeshStandardMaterial({ color: opts.color, roughness: 0.7, metalness: 0.1 });
     this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.position.copy(this.position);
+    // Do NOT copy this.position (SI meters) directly to mesh — syncMesh handles conversion
     this.mesh.userData.body = this;
     scene.add(this.mesh);
 
-    // Trail
-    this.trailBuffer = new Float32Array(TRAIL_LENGTH * 3);
+    // Trail — ring buffer is separate from the GPU display buffer to avoid corruption
+    this.trailBuffer  = new Float32Array(TRAIL_LENGTH * 3);
+    this.trailDisplay = new Float32Array(TRAIL_LENGTH * 3);
     const trailGeo = new THREE.BufferGeometry();
-    trailGeo.setAttribute('position', new THREE.BufferAttribute(this.trailBuffer, 3));
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(this.trailDisplay, 3));
     trailGeo.setDrawRange(0, 0);
     const trailMat = new THREE.LineBasicMaterial({
       color: opts.color,
@@ -76,6 +78,8 @@ export class Body {
     const sx = metersToScene(this.position.x);
     const sy = metersToScene(this.position.y);
     const sz = metersToScene(this.position.z);
+
+    // Write to ring buffer
     const idx = this.trailIndex * 3;
     this.trailBuffer[idx]     = sx;
     this.trailBuffer[idx + 1] = sy;
@@ -83,17 +87,15 @@ export class Body {
     this.trailIndex = (this.trailIndex + 1) % TRAIL_LENGTH;
     if (!this.trailFull && this.trailIndex === 0) this.trailFull = true;
 
-    // Reorder buffer so it draws from oldest→newest
+    // Build display buffer in chronological order (oldest → newest)
     const count = this.trailFull ? TRAIL_LENGTH : this.trailIndex;
     if (count > 1) {
-      const ordered = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {
         const src = ((this.trailIndex - count + i + TRAIL_LENGTH) % TRAIL_LENGTH) * 3;
-        ordered[i * 3]     = this.trailBuffer[src];
-        ordered[i * 3 + 1] = this.trailBuffer[src + 1];
-        ordered[i * 3 + 2] = this.trailBuffer[src + 2];
+        this.trailDisplay[i * 3]     = this.trailBuffer[src];
+        this.trailDisplay[i * 3 + 1] = this.trailBuffer[src + 1];
+        this.trailDisplay[i * 3 + 2] = this.trailBuffer[src + 2];
       }
-      (this.trailLine.geometry.attributes.position as THREE.BufferAttribute).array.set(ordered);
       (this.trailLine.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
       this.trailLine.geometry.setDrawRange(0, count);
     }
