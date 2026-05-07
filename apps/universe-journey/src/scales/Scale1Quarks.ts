@@ -329,7 +329,7 @@ export class Scale1Quarks implements IScale {
 <div class="edu-section">
   <div class="edu-section-title">Cornell Potential</div>
   <p>The force between two quarks is described by the <span class="edu-highlight">Cornell potential</span>. The first term pulls quarks together at short range; the second grows with distance, making escape impossible.</p>
-  <div class="edu-equation-inline">${mathHtml('V(r) = -\dfrac{4\alpha_s}{3\,r} + \kappa\, r')}</div>
+  <div class="edu-equation-inline">${mathHtml('V(r) = -\\dfrac{4\\alpha_s}{3\\,r} + \\kappa\\, r')}</div>
   <table class="edu-def-table">
     <tr><td><em>α</em><sub>s</sub></td><td>≈ 0.118 — strong coupling constant</td></tr>
     <tr><td><em>κ</em></td><td>≈ 0.18 GeV²/ℏc — string tension</td></tr>
