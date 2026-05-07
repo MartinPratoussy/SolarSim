@@ -4,6 +4,7 @@ import { ScaleManager } from './ScaleManager';
 export class HUD {
   private readonly dots = Array.from(document.querySelectorAll<HTMLSpanElement>('#scale-dots .dot'));
   private readonly label = document.getElementById('scale-label') as HTMLDivElement;
+  private readonly continueBtn = document.getElementById('continue-btn') as HTMLButtonElement;
 
   constructor(private readonly manager: ScaleManager) {
     this.dots.forEach((dot) => {
@@ -12,9 +13,21 @@ export class HUD {
         void this.manager.goto(scale);
       });
     });
+
+    this.continueBtn.addEventListener('click', () => {
+      this.continueBtn.style.display = 'none';
+      this.manager.next();
+    });
+
     EventBus.on('scale:change', () => {
+      this.continueBtn.style.display = 'none';
       this.render();
     });
+
+    EventBus.on('scale:ready', () => {
+      this.continueBtn.style.display = 'inline-flex';
+    });
+
     this.render();
   }
 

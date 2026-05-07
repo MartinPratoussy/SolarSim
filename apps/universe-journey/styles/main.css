@@ -91,10 +91,37 @@ button {
   padding: 7px 14px;
   border-radius: 999px;
   cursor: pointer;
+  font-size: 12px;
 }
 
 #skip-btn:hover {
   background: rgba(99, 179, 255, 0.18);
+}
+
+#continue-btn {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.2), rgba(99, 179, 255, 0.2));
+  border: 1px solid #4ade80;
+  color: #4ade80;
+  padding: 8px 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  animation: continueGlow 1.8s ease-in-out infinite;
+}
+
+#continue-btn:hover {
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.4), rgba(99, 179, 255, 0.3));
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+}
+
+@keyframes continueGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(74, 222, 128, 0.4); }
+  50%       { box-shadow: 0 0 22px rgba(74, 222, 128, 0.8), 0 0 40px rgba(74, 222, 128, 0.2); }
 }
 
 #edu-panel {

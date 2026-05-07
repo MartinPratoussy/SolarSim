@@ -1,6 +1,7 @@
 export type EventMap = {
   'scale:complete': { scale: number };
   'scale:change': { scale: number };
+  'scale:ready': { scale: number };   // goal met — waiting for user to continue
   'toast': { title: string; body: string };
   'edu:update': { title: string; body: string; equation?: string; hint?: string };
   'edu:event': { text: string };

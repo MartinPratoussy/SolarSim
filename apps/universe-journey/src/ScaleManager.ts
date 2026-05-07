@@ -71,14 +71,15 @@ export class ScaleManager {
     }
     this.completed.add(n);
     const scale = this.scales[n];
+    const isLast = n >= this.scales.length - 1;
     EventBus.emit('toast', {
-      title: `${scale.name} complete`,
-      body: n < this.scales.length - 1 ? 'Advancing to the next scale of the universe journey…' : 'You reached the end of the journey.',
+      title: `✓ ${scale.name} complete!`,
+      body: isLast
+        ? 'You have built a universe. Explore your solar system.'
+        : 'Goal reached — take your time, then press Continue when ready.',
     });
-    if (n < this.scales.length - 1) {
-      window.setTimeout(() => {
-        void this.goto(n + 1);
-      }, 2000);
+    if (!isLast) {
+      EventBus.emit('scale:ready', { scale: n });
     }
     EventBus.emit('scale:change', { scale: this.current });
   }
