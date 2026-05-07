@@ -6,7 +6,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Body, keplerVelocity, metersToScene, type BodyType } from './Body';
 import { SolarSystem } from './SolarSystem';
 import { SOLAR_DATA, initialPosition } from './solarData';
-import { BASE_TIMESTEP, AU } from './constants';
+import { BASE_TIMESTEP, AU, DAY } from './constants';
 import {
   createStarfield, createSunGlow,
   applyPlanetTexture, addAtmosphere, addSaturnRing,
@@ -343,15 +343,23 @@ window.addEventListener('resize', () => {
 
 // ── Animate ───────────────────────────────────────────────────────────────
 const clock = new THREE.Clock();
+// Max physical timestep per RK4 step: 2 simulated days.
+// Mercury's period = 88 days → ≥44 integration steps/orbit even at 1000×.
+// Without this cap, at 1000× each frame = 16.7 days → only ~5 steps/orbit
+// → RK4 energy error accumulates → planets eject or spiral inward.
+const MAX_SUBSTEP_DT = DAY * 2;
+const MAX_SUBSTEPS    = 60; // safety cap on steps-per-frame at extreme speeds
 
 function animate() {
   requestAnimationFrame(animate);
   const delta = Math.min(clock.getDelta(), 0.05);
-  const dt = BASE_TIMESTEP * speedMultiplier * delta;
+  const totalDt = BASE_TIMESTEP * speedMultiplier * delta;
 
   if (speedMultiplier > 0) {
-    solar.update(dt);
-    simulatedDays += dt / 86400;
+    const steps  = Math.min(Math.ceil(totalDt / MAX_SUBSTEP_DT), MAX_SUBSTEPS);
+    const subDt  = totalDt / steps;
+    for (let i = 0; i < steps; i++) solar.update(subDt);
+    simulatedDays += totalDt / 86400;
   }
 
   // Planet self-rotation
