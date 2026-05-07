@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Body, keplerVelocity, metersToScene, type BodyType } from './Body';
 import { SolarSystem } from './SolarSystem';
 import { SOLAR_DATA, initialPosition } from './solarData';
@@ -8,6 +11,7 @@ import {
   createStarfield, createSunGlow,
   applyPlanetTexture, addAtmosphere, addSaturnRing,
   buildBlackHoleVisuals, spaghettify, spawnGravWaveRing,
+  applyStarVisuals, createGravityGrid, LensDistortionShader,
 } from './visuals';
 import { updateInfoPanel, showTooltip, hideTooltip } from './ui';
 import { EventBus } from './events';
@@ -31,6 +35,13 @@ controls.minDistance = 5;
 controls.maxDistance = 8000;
 controls.addEventListener('start', () => { flyState = null; followMode = false; }); // cancel fly+follow on drag
 
+// ── Post-processing (gravitational lens distortion) ───────────────────────
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const lensPass = new ShaderPass(LensDistortionShader);
+lensPass.enabled = false; // only active when BHs exist
+composer.addPass(lensPass);
+
 // ── Lights ────────────────────────────────────────────────────────────────
 // No decay so all planets are visibly illuminated regardless of distance
 const sunLight = new THREE.PointLight(0xfff5c0, 3, 0, 0);
@@ -39,6 +50,9 @@ scene.add(new THREE.AmbientLight(0x334466, 0.6)); // subtle blue-space fill
 
 // ── Starfield ─────────────────────────────────────────────────────────────
 createStarfield(scene);
+
+// ── Gravity grid ──────────────────────────────────────────────────────────
+const gravityGrid = createGravityGrid(scene);
 
 // ── Solar system ──────────────────────────────────────────────────────────
 const solar = new SolarSystem(scene);
@@ -164,6 +178,13 @@ scaleToggle.addEventListener('click', () => {
     body.mesh.geometry.dispose();
     body.mesh.geometry = new THREE.SphereGeometry(newR, 24, 24);
   }
+});
+
+// ── Gravity grid toggle ───────────────────────────────────────────────────
+const gridToggle = document.getElementById('grid-toggle')!;
+gridToggle.addEventListener('click', () => {
+  gravityGrid.mesh.visible = !gravityGrid.mesh.visible;
+  gridToggle.classList.toggle('active', gravityGrid.mesh.visible);
 });
 
 // ── Click: select or place ────────────────────────────────────────────────
@@ -296,6 +317,13 @@ function placeBody(screenX: number, screenY: number) {
     EventBus.emit('edu:blackhole', {});
   }
 
+  if (type === 'star') {
+    applyStarVisuals(body, scene);
+    // Give this star its own light source
+    const starLight = new THREE.PointLight(0xfff5c0, 2, 0, 0);
+    body.mesh.add(starLight);
+  }
+
   solar.add(body);
 }
 
@@ -307,6 +335,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
 // ── Animate ───────────────────────────────────────────────────────────────
@@ -396,8 +425,28 @@ function animate() {
   const d = Math.floor(simulatedDays);
   timeDisplay.textContent = d < 730 ? `Day ${d.toLocaleString()}` : `Year ${(d / 365.25).toFixed(1)}`;
 
+  // Gravity grid deformation
+  if (gravityGrid.mesh.visible) gravityGrid.update(solar.bodies);
+
+  // Lens distortion — update BH screen positions and toggle pass
+  lensPass.enabled = blackholes.length > 0;
+  if (lensPass.enabled) {
+    const uvs    = lensPass.uniforms['bhUV'].value      as THREE.Vector2[];
+    const strengths = lensPass.uniforms['bhStrength'].value as number[];
+    for (let i = 0; i < 4; i++) {
+      if (i < blackholes.length) {
+        const p = blackholes[i].mesh.position.clone().project(camera);
+        uvs[i].set((p.x + 1) / 2, (p.y + 1) / 2);
+        strengths[i] = blackholes[i].drawRadius * blackholes[i].drawRadius * 0.00025;
+      } else {
+        strengths[i] = 0;
+      }
+    }
+    lensPass.uniforms['bhCount'].value = Math.min(blackholes.length, 4);
+  }
+
   controls.update();
-  renderer.render(scene, camera);
+  composer.render();
 }
 
 animate();

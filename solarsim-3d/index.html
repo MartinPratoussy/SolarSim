@@ -82,6 +82,15 @@
         z-index: 10; font-size: 12px; cursor: pointer; color: #fff;
       }
       #scale-toggle:hover { background: rgba(255,255,255,0.1); }
+      /* ── Grid toggle ── */
+      #grid-toggle {
+        position: fixed; left: 16px; top: 52px;
+        background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 8px; padding: 6px 12px; backdrop-filter: blur(8px);
+        z-index: 10; font-size: 12px; cursor: pointer; color: #fff;
+      }
+      #grid-toggle:hover { background: rgba(255,255,255,0.1); }
+      #grid-toggle.active { background: rgba(0,204,255,0.2); border-color: #00ccff; color: #00ccff; }
     </style>
   </head>
   <body>
@@ -132,6 +141,9 @@
 
     <!-- Scale toggle -->
     <button id="scale-toggle">🔭 Artistic Scale</button>
+
+    <!-- Gravity grid toggle -->
+    <button id="grid-toggle">🌐 Gravity Grid</button>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

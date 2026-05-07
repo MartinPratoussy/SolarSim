@@ -114,7 +114,27 @@ export function buildBlackHoleVisuals(body: Body) {
   inner.rotation.x = Math.PI / 4;
   body.mesh.add(inner);
 
-  // Event horizon dark sprite
+  // Photon sphere: bright glowing ring at ~2.6x radius (represents the photon capture orbit)
+  const photonGeo = new THREE.TorusGeometry(body.drawRadius * 2.6, body.drawRadius * 0.08, 12, 96);
+  const photonMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false });
+  body.mesh.add(new THREE.Mesh(photonGeo, photonMat));
+
+  // Outer diffuse corona
+  const coronaCanvas = document.createElement('canvas');
+  coronaCanvas.width = coronaCanvas.height = 256;
+  const cctx = coronaCanvas.getContext('2d')!;
+  const cgrad = cctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  cgrad.addColorStop(0,   'rgba(255,120,30,0.0)');
+  cgrad.addColorStop(0.3, 'rgba(255,80,0,0.5)');
+  cgrad.addColorStop(0.55,'rgba(255,180,50,0.3)');
+  cgrad.addColorStop(0.75,'rgba(100,50,200,0.1)');
+  cgrad.addColorStop(1,   'rgba(0,0,0,0)');
+  cctx.fillStyle = cgrad;
+  cctx.fillRect(0, 0, 256, 256);
+  const coronaSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(coronaCanvas), blending: THREE.AdditiveBlending, depthWrite: false }));
+  coronaSprite.scale.setScalar(body.drawRadius * 14);
+  body.mesh.add(coronaSprite);
+
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 128;
   const ctx = canvas.getContext('2d')!;
@@ -146,6 +166,81 @@ export function spaghettify(body: Body, blackhole: Body): boolean {
   }
   return dist < eventHorizon;
 }
+
+/** Apply sun-like glow and emissive to any placed star body */
+export function applyStarVisuals(body: Body, scene: THREE.Scene) {
+  const glow = createSunGlow(scene, new THREE.Vector3(), body.drawRadius);
+  scene.remove(glow);
+  body.mesh.add(glow);
+  glow.position.set(0, 0, 0);
+  const mat = body.mesh.material as THREE.MeshStandardMaterial;
+  mat.emissive = new THREE.Color(0xfff5c0);
+  mat.emissiveIntensity = 0.6;
+}
+
+/** Space-time distortion grid: flat wireframe plane deformed by gravity */
+export function createGravityGrid(scene: THREE.Scene) {
+  const SEG = 60, SIZE = 700;
+  const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
+  geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.25, depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.visible = false;
+  scene.add(mesh);
+
+  function update(bodies: Body[]) {
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const wx = pos.getX(i), wz = pos.getZ(i);
+      let phi = 0;
+      for (const b of bodies) {
+        const dx = wx - b.mesh.position.x, dz = wz - b.mesh.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        phi -= 2000 * Math.pow(b.mass / 2e30, 0.3) / Math.max(dist, b.drawRadius * 2);
+      }
+      pos.setY(i, Math.max(phi, -50));
+    }
+    pos.needsUpdate = true;
+  }
+
+  return { mesh, update };
+}
+
+/** Lens-distortion shader for EffectComposer — warps screen UVs around black holes */
+export const LensDistortionShader = {
+  name: 'LensDistortionShader',
+  uniforms: {
+    tDiffuse:   { value: null as THREE.Texture | null },
+    bhUV:       { value: [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()] },
+    bhStrength: { value: [0, 0, 0, 0] as number[] },
+    bhCount:    { value: 0 },
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+  `,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform vec2  bhUV[4];
+    uniform float bhStrength[4];
+    uniform int   bhCount;
+    varying vec2  vUv;
+    void main() {
+      vec2 uv = vUv;
+      for (int i = 0; i < 4; i++) {
+        if (i >= bhCount) break;
+        vec2  d    = uv - bhUV[i];
+        float dist = length(d);
+        if (dist < 0.001) { gl_FragColor = vec4(0.0,0.0,0.0,1.0); return; }
+        float warp = bhStrength[i] / (dist * dist + 0.0002);
+        uv -= normalize(d) * min(warp, 0.12);
+      }
+      gl_FragColor = texture2D(tDiffuse, clamp(uv, 0.001, 0.999));
+    }
+  `,
+};
 
 export function spawnGravWaveRing(scene: THREE.Scene, position: THREE.Vector3) {
   const rings: { mesh: THREE.Mesh; age: number }[] = [];
