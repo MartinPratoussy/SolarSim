@@ -1,22 +1,36 @@
-# ☀️ Solar System Simulator
+# SolarSim
 
-A real-time 2D gravity simulator built with Python and Pygame.  
-Create planets, moons, and asteroids. Watch them orbit, collide, and explode into cosmic chaos! 🌌
+An interactive, educational physics sandbox — from the smallest quarks to a full solar system.
 
-## 🚀 Features
+## Apps
 
-- 🌍 Real Newtonian physics with inter-body gravity
-- 🪐 Click to spawn celestial bodies (planet, moon, asteroid)
-- 🔥 Bodies collide, merge, and create debris
-- 🎮 Sliders to adjust masses in real time
-- 🖱️ Right-click to choose object types
-- 💥 Full orbital mayhem included
+| App | Path | Description |
+|---|---|---|
+| **Universe Journey** | `apps/universe-journey/` | Scale journey from quarks → nuclear → atomic → stellar ignition (6 interactive simulations) |
+| **Solar System** | `apps/solar-system/` | 3D N-body gravitational sandbox — place stars, planets, black holes, watch chaos unfold |
 
-## 🧪 Requirements
+## Getting started
 
-- Python 3.10+
-- `pygame`
-- `pygame_gui`
+```bash
+# Universe Journey
+cd apps/universe-journey
+npm install
+npm run dev      # → http://localhost:5173
+
+# Solar System
+cd apps/solar-system
+npm install
+npm run dev      # → http://localhost:5173
+```
+
+## Tech stack
+
+Both apps share the same stack: **Vite + TypeScript + Three.js**
+
+- Real physics equations (Cornell potential, Yukawa, RK4 N-body, Jeans instability…)
+- Educational panels with live event logs and physics formulas
+- No backend — runs entirely in the browser
+
 
 Install with:
 
