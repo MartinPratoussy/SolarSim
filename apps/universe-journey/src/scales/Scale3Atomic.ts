@@ -110,9 +110,11 @@ export class Scale3Atomic implements IScale {
   init(_container: HTMLElement, renderer: THREE.WebGLRenderer): void {
     this.renderer = renderer;
     this.scene    = new THREE.Scene();
+    this.camera.position.set(0, 0, 10);
+    this.camera.lookAt(0, 0, 0);
     this.scene.add(new THREE.AmbientLight(0x7c96b5, 0.95));
     const light = new THREE.PointLight(0xc5ecff, 10, 55, 2);
-    light.position.set(0, 0, 15);
+    light.position.set(0, 0, 10);
     this.scene.add(light, createBackdrop());
 
     this.nuclei    = [];
