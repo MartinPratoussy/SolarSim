@@ -133,12 +133,12 @@ export function buildBlackHoleVisuals(body: Body) {
 
 /** Stretch body toward black hole; returns true when it crosses event horizon */
 export function spaghettify(body: Body, blackhole: Body): boolean {
-  const dist = body.position.distanceTo(blackhole.position);
+  const dist = body.mesh.position.distanceTo(blackhole.mesh.position);
   const eventHorizon = blackhole.drawRadius * 3;
   if (dist < eventHorizon * 8) {
     const stretch = 1 + (1 - dist / (eventHorizon * 8)) * 4;
     body.mesh.scale.set(1 / stretch, 1 / stretch, stretch);
-    body.mesh.lookAt(blackhole.position);
+    body.mesh.lookAt(blackhole.mesh.position);
     const opacity = Math.max(0, (dist - eventHorizon) / (eventHorizon * 7));
     const mat = body.mesh.material as THREE.MeshStandardMaterial;
     mat.transparent = true;

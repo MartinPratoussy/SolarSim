@@ -73,10 +73,13 @@ export class Body {
   }
 
   updateTrail() {
+    const sx = metersToScene(this.position.x);
+    const sy = metersToScene(this.position.y);
+    const sz = metersToScene(this.position.z);
     const idx = this.trailIndex * 3;
-    this.trailBuffer[idx]     = this.position.x;
-    this.trailBuffer[idx + 1] = this.position.y;
-    this.trailBuffer[idx + 2] = this.position.z;
+    this.trailBuffer[idx]     = sx;
+    this.trailBuffer[idx + 1] = sy;
+    this.trailBuffer[idx + 2] = sz;
     this.trailIndex = (this.trailIndex + 1) % TRAIL_LENGTH;
     if (!this.trailFull && this.trailIndex === 0) this.trailFull = true;
 
@@ -97,7 +100,11 @@ export class Body {
   }
 
   syncMesh() {
-    this.mesh.position.copy(this.position);
+    this.mesh.position.set(
+      metersToScene(this.position.x),
+      metersToScene(this.position.y),
+      metersToScene(this.position.z),
+    );
   }
 
   /** Orbital period around a central body of mass M (seconds) */

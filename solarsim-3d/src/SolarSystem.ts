@@ -2,10 +2,9 @@ import * as THREE from 'three';
 import { Body } from './Body';
 import { rk4Step } from './physics';
 import { AU } from './constants';
-import { metersToScene } from './Body';
 import { EventBus } from './events';
 
-const SCENE_BOUND = metersToScene(50 * AU); // bodies beyond 50 AU are removed
+const POSITION_BOUND = 50 * AU; // bodies beyond 50 AU (in meters) are removed
 
 export class SolarSystem {
   bodies: Body[] = [];
@@ -42,7 +41,8 @@ export class SolarSystem {
         const b2 = this.bodies[j];
         if (removed.has(b2) || !b2.collidable) continue;
 
-        const dist = b1.position.distanceTo(b2.position);
+        // Compare in scene units so threshold matches artistic drawRadius
+        const dist = b1.mesh.position.distanceTo(b2.mesh.position);
         const threshold = b1.drawRadius + b2.drawRadius;
         if (dist > threshold) continue;
 
@@ -77,7 +77,7 @@ export class SolarSystem {
     const toRemove: Body[] = [];
     for (const b of this.bodies) {
       if (b.type === 'star' || b.type === 'blackhole') continue;
-      if (b.position.length() > SCENE_BOUND) {
+      if (b.position.length() > POSITION_BOUND) {
         toRemove.push(b);
         EventBus.emit('edu:ejected', { body: b });
       }

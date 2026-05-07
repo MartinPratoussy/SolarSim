@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Body, keplerVelocity, metersToScene, type BodyType } from './Body';
 import { SolarSystem } from './SolarSystem';
 import { SOLAR_DATA, initialPosition } from './solarData';
-import { BASE_TIMESTEP } from './constants';
+import { BASE_TIMESTEP, AU } from './constants';
 import {
   createStarfield, createSunGlow,
   applyPlanetTexture, addAtmosphere, addSaturnRing,
@@ -55,12 +55,17 @@ applyPlanetTexture(sun, SOLAR_DATA.sun.texture);
 (sun.mesh.material as THREE.MeshStandardMaterial).emissive = new THREE.Color(0xfff5c0);
 (sun.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.6;
 solar.add(sun);
-createSunGlow(scene, sun.position, sun.drawRadius);
+
+// Sun glow as child of mesh so it always follows the sun
+const sunGlow = createSunGlow(scene, new THREE.Vector3(0, 0, 0), sun.drawRadius);
+scene.remove(sunGlow);
+sun.mesh.add(sunGlow);
+sunGlow.position.set(0, 0, 0);
 
 // Planets
 for (const pd of SOLAR_DATA.planets) {
-  const pos = initialPosition(pd);
-  const vel = keplerVelocity(pos, SOLAR_DATA.sun.mass, pd.inclination);
+  const pos = initialPosition(pd);          // SI meters
+  const vel = keplerVelocity(pos, SOLAR_DATA.sun.mass, pd.inclination); // SI m/s
   const planet = new Body({
     name: pd.name, type: 'planet',
     mass: pd.mass,
@@ -76,6 +81,21 @@ for (const pd of SOLAR_DATA.planets) {
   if (pd.hasRing) addSaturnRing(planet);
   solar.add(planet);
 }
+
+// Zero total system momentum so the center of mass stays at the origin
+{
+  const totalMom = new THREE.Vector3();
+  let totalMass = 0;
+  for (const b of solar.bodies) {
+    totalMom.addScaledVector(b.velocity, b.mass);
+    totalMass += b.mass;
+  }
+  const vCoM = totalMom.divideScalar(totalMass);
+  for (const b of solar.bodies) b.velocity.sub(vCoM);
+}
+
+// Initial mesh sync so bodies appear at correct scene positions on frame 0
+for (const b of solar.bodies) b.syncMesh();
 
 // ── State ─────────────────────────────────────────────────────────────────
 let speedMultiplier = 1;
@@ -205,8 +225,11 @@ function placeBody(screenX: number, screenY: number) {
   const dir = vec.sub(camera.position).normalize();
   const t = -camera.position.y / dir.y;
   if (!isFinite(t) || t < 0) return;
-  const worldPos = camera.position.clone().addScaledVector(dir, t);
-  worldPos.y = 0;
+  const scenePos = camera.position.clone().addScaledVector(dir, t);
+  scenePos.y = 0;
+
+  // Convert scene units → SI meters for physics
+  const worldPosSI = scenePos.clone().multiplyScalar(AU / 100);
 
   const type = placingType as BodyType;
   const preset = BODY_PRESETS[type];
@@ -215,7 +238,8 @@ function placeBody(screenX: number, screenY: number) {
   const star = solar.findStar();
   let vel = new THREE.Vector3();
   if (star && type !== 'star' && type !== 'blackhole' && type !== 'asteroid') {
-    vel = keplerVelocity(worldPos.clone().sub(star.position), star.mass);
+    // Relative position from star in SI meters, then compute Kepler velocity in m/s
+    vel = keplerVelocity(worldPosSI.clone().sub(star.position), star.mass);
     vel.add(star.velocity);
   }
 
@@ -223,7 +247,7 @@ function placeBody(screenX: number, screenY: number) {
   const body = new Body({
     name: `${type.charAt(0).toUpperCase() + type.slice(1)} ${bodyCounter}`,
     type, ...preset,
-    position: worldPos,
+    position: worldPosSI,
     velocity: vel,
   }, scene);
 
@@ -284,19 +308,19 @@ function animate() {
     for (let i = 0; i < blackholes.length; i++) {
       for (let j = i + 1; j < blackholes.length; j++) {
         const bh1 = blackholes[i], bh2 = blackholes[j];
-        if (bh1.position.distanceTo(bh2.position) < bh1.drawRadius + bh2.drawRadius) {
+        if (bh1.mesh.position.distanceTo(bh2.mesh.position) < bh1.drawRadius + bh2.drawRadius) {
           const totalMass = bh1.mass + bh2.mass;
           bh1.velocity.multiplyScalar(bh1.mass / totalMass).addScaledVector(bh2.velocity, bh2.mass / totalMass);
           bh1.mass = totalMass;
           bh1.drawRadius = Math.pow(Math.pow(bh1.drawRadius, 3) + Math.pow(bh2.drawRadius, 3), 1/3);
-          spawnGravWaveRing(scene, bh1.position.clone());
+          spawnGravWaveRing(scene, bh1.mesh.position.clone());
           solar.remove(bh2);
         }
       }
     }
   }
 
-  sunLight.position.copy(sun.position);
+  sunLight.position.copy(sun.mesh.position);
   if (followMode && selectedBody) controls.target.copy(selectedBody.mesh.position);
   if (selectedBody) updateInfoPanel(selectedBody, solar.findStar()?.mass ?? 0);
 

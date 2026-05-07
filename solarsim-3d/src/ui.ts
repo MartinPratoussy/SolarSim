@@ -92,8 +92,8 @@ export function updateInfoPanel(body: Body | null, centralMass: number) {
   }
   panel.style.display = 'block';
 
-  const speedMS = body.velocity.length(); // scene-units/s × ... we work in real units
-  const distM = body.position.length() / 100 * AU; // scene → meters
+  const speedMS = body.velocity.length(); // m/s
+  const distM = body.position.length();   // meters
   const distAU = distM / AU;
 
   infoName.textContent = body.name;

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { AU } from './constants';
-import { metersToScene } from './Body';
 
 /** Real solar system data. Distances in meters, masses in kg, radii in meters. */
 export interface PlanetData {
@@ -135,12 +134,8 @@ export const SOLAR_DATA = {
   ] as PlanetData[],
 };
 
+/** Returns initial perihelion position in SI meters */
 export function initialPosition(planet: PlanetData): THREE.Vector3 {
-  const r = planet.semiMajorAxis * (1 - planet.eccentricity);
-  const sceneR = metersToScene(r);
-  return new THREE.Vector3(
-    sceneR,
-    sceneR * Math.sin(planet.inclination),
-    0
-  );
+  const r = planet.semiMajorAxis * (1 - planet.eccentricity); // meters
+  return new THREE.Vector3(r, r * Math.sin(planet.inclination), 0);
 }
