@@ -29,11 +29,13 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.06;
 controls.minDistance = 5;
 controls.maxDistance = 8000;
+controls.addEventListener('start', () => { flyState = null; }); // cancel fly on drag
 
 // ── Lights ────────────────────────────────────────────────────────────────
-const sunLight = new THREE.PointLight(0xfff5c0, 3, 0, 1.5);
+// No decay so all planets are visibly illuminated regardless of distance
+const sunLight = new THREE.PointLight(0xfff5c0, 3, 0, 0);
 scene.add(sunLight);
-scene.add(new THREE.AmbientLight(0x111122, 0.8));
+scene.add(new THREE.AmbientLight(0x334466, 0.6)); // subtle blue-space fill
 
 // ── Starfield ─────────────────────────────────────────────────────────────
 createStarfield(scene);
@@ -105,9 +107,28 @@ let followMode = false;
 let artisticScale = true;
 let simulatedDays = 0;
 
-// ── Raycaster ─────────────────────────────────────────────────────────────
+// Camera fly-to animation
+interface FlyState { targetEnd: THREE.Vector3; camEnd: THREE.Vector3; targetStart: THREE.Vector3; camStart: THREE.Vector3; t: number; }
+let flyState: FlyState | null = null;
+
+// ── Raycaster (kept for right-click delete) ───────────────────────────────
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+
+/** Find the closest body to screen coords (px) within threshold pixels. */
+function nearestBodyToScreen(cx: number, cy: number, threshold: number): Body | null {
+  const hw = window.innerWidth  / 2;
+  const hh = window.innerHeight / 2;
+  let nearest: Body | null = null;
+  let nearestDist = threshold;
+  for (const body of solar.bodies) {
+    const s = body.mesh.position.clone().project(camera);
+    if (s.z > 1) continue; // behind camera
+    const d = Math.hypot((s.x + 1) * hw - cx, (1 - s.y) * hh - cy);
+    if (d < nearestDist) { nearestDist = d; nearest = body; }
+  }
+  return nearest;
+}
 
 // ── Toolbar ───────────────────────────────────────────────────────────────
 document.querySelectorAll<HTMLButtonElement>('#toolbar button').forEach(btn => {
@@ -144,18 +165,13 @@ scaleToggle.addEventListener('click', () => {
 
 // ── Click: select or place ────────────────────────────────────────────────
 renderer.domElement.addEventListener('click', (e) => {
-  mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-
   if (placingType !== 'none') {
     placeBody(e.clientX, e.clientY);
     return;
   }
 
-  const hits = raycaster.intersectObjects(solar.bodies.map(b => b.mesh));
-  if (hits.length > 0) {
-    const body = hits[0].object.userData.body as Body;
+  const body = nearestBodyToScreen(e.clientX, e.clientY, 48);
+  if (body) {
     selectedBody = body;
     followMode = false;
     updateInfoPanel(body, solar.findStar()?.mass ?? 0);
@@ -165,6 +181,24 @@ renderer.domElement.addEventListener('click', (e) => {
     updateInfoPanel(null, 0);
     EventBus.emit('select:none', {});
   }
+});
+
+// ── Double-click: fly camera to body ─────────────────────────────────────
+renderer.domElement.addEventListener('dblclick', (e) => {
+  const body = nearestBodyToScreen(e.clientX, e.clientY, 60);
+  if (!body) return;
+  followMode = false;
+  selectedBody = body;
+  updateInfoPanel(body, solar.findStar()?.mass ?? 0);
+  const zoom = Math.max(body.drawRadius * 12, 18);
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  flyState = {
+    targetStart: controls.target.clone(),
+    camStart:    camera.position.clone(),
+    targetEnd:   body.mesh.position.clone(),
+    camEnd:      body.mesh.position.clone().addScaledVector(dir, zoom),
+    t: 0,
+  };
 });
 
 // ── Right-click: delete ───────────────────────────────────────────────────
@@ -185,26 +219,8 @@ renderer.domElement.addEventListener('contextmenu', (e) => {
 
 // ── Hover tooltip — screen-space proximity (handles small planets reliably) ──
 renderer.domElement.addEventListener('mousemove', (e) => {
-  const hw = window.innerWidth  / 2;
-  const hh = window.innerHeight / 2;
-  const mx = e.clientX;
-  const my = e.clientY;
-  const THRESHOLD_PX = 48; // pixels
-
-  let nearest: Body | null = null;
-  let nearestDist = THRESHOLD_PX;
-
-  for (const body of solar.bodies) {
-    const screenPos = body.mesh.position.clone().project(camera);
-    // project() gives NDC [-1,1]; convert to pixels
-    const sx = (screenPos.x + 1) * hw;
-    const sy = (1 - screenPos.y) * hh;
-    if (screenPos.z > 1) continue; // behind camera
-    const d = Math.hypot(sx - mx, sy - my);
-    if (d < nearestDist) { nearestDist = d; nearest = body; }
-  }
-
-  if (nearest) showTooltip(nearest, e.clientX, e.clientY);
+  const body = nearestBodyToScreen(e.clientX, e.clientY, 48);
+  if (body) showTooltip(body, e.clientX, e.clientY);
   else hideTooltip();
 });
 
@@ -336,7 +352,19 @@ function animate() {
   }
 
   sunLight.position.copy(sun.mesh.position);
-  if (followMode && selectedBody) controls.target.copy(selectedBody.mesh.position);
+
+  // Camera fly-to animation (double-click focus)
+  if (flyState) {
+    flyState.t = Math.min(flyState.t + delta * 1.8, 1); // ~0.55 s
+    const k = flyState.t < 0.5
+      ? 2 * flyState.t * flyState.t                       // ease-in
+      : 1 - Math.pow(-2 * flyState.t + 2, 2) / 2;        // ease-out
+    controls.target.lerpVectors(flyState.targetStart, flyState.targetEnd, k);
+    camera.position.lerpVectors(flyState.camStart,    flyState.camEnd,    k);
+    if (flyState.t >= 1) flyState = null;
+  } else if (followMode && selectedBody) {
+    controls.target.copy(selectedBody.mesh.position);
+  }
   if (selectedBody) updateInfoPanel(selectedBody, solar.findStar()?.mass ?? 0);
 
   const d = Math.floor(simulatedDays);
