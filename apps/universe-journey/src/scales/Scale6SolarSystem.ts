@@ -9,7 +9,7 @@ import { Body, keplerVelocity, metersToScene, type BodyType } from '../solar/Bod
 import { SolarSystem, escapeVelocity } from '../solar/SolarSystem';
 import { EventBus as SolarEventBus } from '../solar/solarEvents';
 import { AU, BASE_TIMESTEP, DAY } from '../solar/constants';
-import { SOLAR_DATA, initialPosition } from '../solar/solarData';
+import { MAJOR_MOONS, SOLAR_DATA, initialPosition } from '../solar/solarData';
 import { updateInfoPanel, showTooltip, hideTooltip } from '../solar/ui';
 import {
   addAtmosphere,
@@ -187,6 +187,39 @@ export class Scale6SolarSystem implements IScale {
         addSaturnRing(planet);
       }
       this.solar.add(planet);
+    }
+
+    const planetsByName = new Map<string, Body>();
+    for (const body of this.solar.bodies) {
+      if (body.type === 'planet') {
+        planetsByName.set(body.name, body);
+      }
+    }
+
+    for (const moonData of MAJOR_MOONS) {
+      const parent = planetsByName.get(moonData.parent);
+      if (!parent) {
+        continue;
+      }
+      const minVisibleOrbit = (parent.drawRadius + moonData.drawRadius + 0.35) * (AU / 100);
+      const orbitRadius = Math.max(moonData.semiMajorAxis, minVisibleOrbit);
+      const phase = Math.random() * Math.PI * 2;
+      const rel = new THREE.Vector3(Math.cos(phase) * orbitRadius, 0, Math.sin(phase) * orbitRadius);
+      if (moonData.inclination !== 0) {
+        rel.applyAxisAngle(new THREE.Vector3(1, 0, 0), moonData.inclination);
+      }
+      const velocity = parent.velocity.clone().add(keplerVelocity(rel.clone(), parent.mass));
+      const moon = new Body({
+        name: moonData.name,
+        type: 'moon',
+        mass: moonData.mass,
+        realRadius: moonData.realRadius,
+        drawRadius: moonData.drawRadius,
+        color: moonData.color,
+        position: parent.position.clone().add(rel),
+        velocity,
+      }, this.scene);
+      this.solar.add(moon);
     }
 
     const totalMomentum = new THREE.Vector3();

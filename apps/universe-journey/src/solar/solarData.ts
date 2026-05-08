@@ -17,6 +17,17 @@ export interface PlanetData {
   hasRing?: boolean;
 }
 
+export interface MoonData {
+  name: string;
+  parent: string;
+  mass: number;
+  realRadius: number;
+  semiMajorAxis: number; // meters around parent
+  inclination: number;   // radians relative to parent orbital plane
+  color: number;
+  drawRadius: number;
+}
+
 /** Extra encyclopedic data shown in the info panel. Optional — user-placed bodies won't have it. */
 export interface BodyDetails {
   gravity: number;      // m/s² surface gravity
@@ -219,6 +230,29 @@ export const SOLAR_DATA = {
     },
   ] as PlanetData[],
 };
+
+export const MAJOR_MOONS: MoonData[] = [
+  // Earth / Mars
+  { name: 'Moon', parent: 'Earth', mass: 7.35e22, realRadius: 1.737e6, semiMajorAxis: 3.844e8, inclination: 0.089, color: 0xd6d6d6, drawRadius: 0.24 },
+  { name: 'Phobos', parent: 'Mars', mass: 1.07e16, realRadius: 1.126e4, semiMajorAxis: 9.376e6, inclination: 0.019, color: 0x8a8a8a, drawRadius: 0.09 },
+  { name: 'Deimos', parent: 'Mars', mass: 1.48e15, realRadius: 6.2e3, semiMajorAxis: 2.346e7, inclination: 0.031, color: 0x9c9c9c, drawRadius: 0.08 },
+
+  // Galilean moons
+  { name: 'Io', parent: 'Jupiter', mass: 8.93e22, realRadius: 1.821e6, semiMajorAxis: 4.217e8, inclination: 0.001, color: 0xf0dd9c, drawRadius: 0.22 },
+  { name: 'Europa', parent: 'Jupiter', mass: 4.8e22, realRadius: 1.561e6, semiMajorAxis: 6.711e8, inclination: 0.008, color: 0xdde6f3, drawRadius: 0.20 },
+  { name: 'Ganymede', parent: 'Jupiter', mass: 1.48e23, realRadius: 2.634e6, semiMajorAxis: 1.0704e9, inclination: 0.003, color: 0xbba58e, drawRadius: 0.26 },
+  { name: 'Callisto', parent: 'Jupiter', mass: 1.08e23, realRadius: 2.410e6, semiMajorAxis: 1.8827e9, inclination: 0.004, color: 0x9f907d, drawRadius: 0.25 },
+
+  // Saturn
+  { name: 'Titan', parent: 'Saturn', mass: 1.35e23, realRadius: 2.575e6, semiMajorAxis: 1.2219e9, inclination: 0.006, color: 0xe0c27b, drawRadius: 0.25 },
+  { name: 'Enceladus', parent: 'Saturn', mass: 1.08e20, realRadius: 2.52e5, semiMajorAxis: 2.3802e8, inclination: 0.0002, color: 0xe8f1ff, drawRadius: 0.12 },
+  { name: 'Rhea', parent: 'Saturn', mass: 2.31e21, realRadius: 7.64e5, semiMajorAxis: 5.271e8, inclination: 0.006, color: 0xc8c8cf, drawRadius: 0.16 },
+
+  // Uranus / Neptune
+  { name: 'Titania', parent: 'Uranus', mass: 3.42e21, realRadius: 7.889e5, semiMajorAxis: 4.363e8, inclination: 0.006, color: 0xb3bfd1, drawRadius: 0.16 },
+  { name: 'Oberon', parent: 'Uranus', mass: 3.01e21, realRadius: 7.614e5, semiMajorAxis: 5.835e8, inclination: 0.001, color: 0xa7b0c4, drawRadius: 0.16 },
+  { name: 'Triton', parent: 'Neptune', mass: 2.14e22, realRadius: 1.353e6, semiMajorAxis: 3.54759e8, inclination: 2.74, color: 0xe2d9cf, drawRadius: 0.2 },
+];
 
 /** Returns initial perihelion position in SI meters */
 export function initialPosition(planet: PlanetData): THREE.Vector3 {
