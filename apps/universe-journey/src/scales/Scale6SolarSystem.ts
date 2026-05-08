@@ -8,7 +8,7 @@ import { EventBus } from '../EventBus';
 import { Body, keplerVelocity, metersToScene, type BodyType } from '../solar/Body';
 import { SolarSystem, escapeVelocity } from '../solar/SolarSystem';
 import { EventBus as SolarEventBus } from '../solar/solarEvents';
-import { AU, BASE_TIMESTEP, DAY } from '../solar/constants';
+import { AU, BASE_TIMESTEP, DAY, G } from '../solar/constants';
 import { MAJOR_MOONS, SOLAR_DATA, initialPosition } from '../solar/solarData';
 import { updateInfoPanel, showTooltip, hideTooltip } from '../solar/ui';
 import {
@@ -201,14 +201,15 @@ export class Scale6SolarSystem implements IScale {
       if (!parent) {
         continue;
       }
-      const minVisibleOrbit = (parent.drawRadius + moonData.drawRadius + 0.35) * (AU / 100);
-      const orbitRadius = Math.max(moonData.semiMajorAxis, minVisibleOrbit);
+      const orbitRadius = moonData.semiMajorAxis;
       const phase = Math.random() * Math.PI * 2;
       const rel = new THREE.Vector3(Math.cos(phase) * orbitRadius, 0, Math.sin(phase) * orbitRadius);
-      if (moonData.inclination !== 0) {
-        rel.applyAxisAngle(new THREE.Vector3(1, 0, 0), moonData.inclination);
-      }
-      const velocity = parent.velocity.clone().add(keplerVelocity(rel.clone(), parent.mass));
+      const orbitalNormal = new THREE.Vector3(0, 1, 0);
+      if (moonData.inclination !== 0) orbitalNormal.applyAxisAngle(new THREE.Vector3(1, 0, 0), moonData.inclination);
+      rel.applyAxisAngle(new THREE.Vector3(1, 0, 0), moonData.inclination);
+      const speed = Math.sqrt((G * parent.mass) / orbitRadius);
+      const tangential = new THREE.Vector3().crossVectors(orbitalNormal, rel).normalize().multiplyScalar(speed);
+      const velocity = parent.velocity.clone().add(tangential);
       const moon = new Body({
         name: moonData.name,
         type: 'moon',
