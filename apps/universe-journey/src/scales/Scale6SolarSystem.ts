@@ -223,6 +223,15 @@ export class Scale6SolarSystem implements IScale {
     body.mesh.scale.setScalar(radius / safeBaseRadius);
   }
 
+  private focusCameraDistance(body: Body): number {
+    const radius = Math.max(this.visualRadius(body), 1e-4);
+    if (!this.artisticScale) {
+      // In real scale, stay close enough to inspect the globe rather than framing the whole system.
+      return Math.max(radius * 10, 0.02);
+    }
+    return Math.max(radius * 12, 18);
+  }
+
   private applyScaleMode(): void {
     if (!this.solar) return;
     for (const body of this.solar.bodies) {
@@ -465,7 +474,7 @@ export class Scale6SolarSystem implements IScale {
 
     if (this.flyState) {
       if (this.selectedBody) {
-        const zoom = Math.max(this.visualRadius(this.selectedBody) * 12, 18);
+        const zoom = this.focusCameraDistance(this.selectedBody);
         const direction = this.flyState.camEnd.clone().sub(this.flyState.targetEnd).normalize();
         this.flyState.targetEnd.copy(this.selectedBody.mesh.position);
         this.flyState.camEnd.copy(this.selectedBody.mesh.position).addScaledVector(direction, zoom);
@@ -684,7 +693,7 @@ export class Scale6SolarSystem implements IScale {
       this.followMode = false;
       this.selectedBody = body;
       updateInfoPanel(body, this.solar?.findStar()?.mass ?? 0);
-      const zoom = Math.max(this.visualRadius(body) * 12, 18);
+      const zoom = this.focusCameraDistance(body);
       const direction = this.camera.position.clone().sub(this.controls.target).normalize();
       this.flyState = {
         targetStart: this.controls.target.clone(),
