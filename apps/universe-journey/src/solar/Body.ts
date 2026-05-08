@@ -34,6 +34,7 @@ export class Body {
   private trailDisplay: Float32Array;  // ordered for GPU, separate from ring buffer
   private trailIndex = 0;
   private trailFull = false;
+  private readonly trailScratch = new THREE.Vector3();
 
   constructor(opts: BodyOptions, scene: THREE.Scene) {
     this.name = opts.name;
@@ -87,14 +88,24 @@ export class Body {
     this.trailIndex = (this.trailIndex + 1) % TRAIL_LENGTH;
     if (!this.trailFull && this.trailIndex === 0) this.trailFull = true;
 
+    this.remapTrail();
+  }
+
+  remapTrail(mapper?: (position: THREE.Vector3) => void) {
     // Build display buffer in chronological order (oldest → newest)
     const count = this.trailFull ? TRAIL_LENGTH : this.trailIndex;
     if (count > 1) {
       for (let i = 0; i < count; i++) {
         const src = ((this.trailIndex - count + i + TRAIL_LENGTH) % TRAIL_LENGTH) * 3;
-        this.trailDisplay[i * 3]     = this.trailBuffer[src];
-        this.trailDisplay[i * 3 + 1] = this.trailBuffer[src + 1];
-        this.trailDisplay[i * 3 + 2] = this.trailBuffer[src + 2];
+        this.trailScratch.set(
+          this.trailBuffer[src],
+          this.trailBuffer[src + 1],
+          this.trailBuffer[src + 2],
+        );
+        mapper?.(this.trailScratch);
+        this.trailDisplay[i * 3] = this.trailScratch.x;
+        this.trailDisplay[i * 3 + 1] = this.trailScratch.y;
+        this.trailDisplay[i * 3 + 2] = this.trailScratch.z;
       }
       (this.trailLine.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
       this.trailLine.geometry.setDrawRange(0, count);

@@ -85,6 +85,15 @@ export class Scale6SolarSystem implements IScale {
   private readonly mouse = new THREE.Vector2();
   private cleanupCallbacks: Array<() => void> = [];
 
+  private projectScenePosition(position: THREE.Vector3): void {
+    if (!this.artisticScale) return;
+    const r = position.length();
+    if (r < 1e-6) return;
+    // Artistic distance projection: spreads inner system and compresses outer system.
+    const projected = 6.2 * Math.pow(r, 0.78);
+    position.multiplyScalar(projected / r);
+  }
+
   private visualRadius(body: Body): number {
     if (this.artisticScale || body.type === 'blackhole') {
       return body.drawRadius;
@@ -93,22 +102,19 @@ export class Scale6SolarSystem implements IScale {
   }
 
   private visualPosition(position: THREE.Vector3): THREE.Vector3 {
-    const mapped = new THREE.Vector3(
+    const scenePosition = new THREE.Vector3(
       metersToScene(position.x),
       metersToScene(position.y),
       metersToScene(position.z),
     );
-    if (!this.artisticScale) return mapped;
-    const r = mapped.length();
-    if (r < 1e-6) return mapped;
-    // Artistic distance projection: spreads inner system and compresses outer system.
-    const projected = 6.2 * Math.pow(r, 0.78);
-    return mapped.multiplyScalar(projected / r);
+    this.projectScenePosition(scenePosition);
+    return scenePosition;
   }
 
   private applyVisualTransform(body: Body): void {
     body.mesh.position.copy(this.visualPosition(body.position));
     this.applyVisualScale(body);
+    body.remapTrail(this.artisticScale ? (position) => this.projectScenePosition(position) : undefined);
   }
 
   private applyVisualScale(body: Body): void {
@@ -326,11 +332,12 @@ export class Scale6SolarSystem implements IScale {
         for (let j = i + 1; j < blackholes.length; j += 1) {
           const first = blackholes[i];
           const second = blackholes[j];
-          if (first.mesh.position.distanceTo(second.mesh.position) < this.visualRadius(first) + this.visualRadius(second)) {
+          if (first.position.distanceTo(second.position) < first.realRadius + second.realRadius) {
             const totalMass = first.mass + second.mass;
             first.velocity.multiplyScalar(first.mass / totalMass).addScaledVector(second.velocity, second.mass / totalMass);
             first.mass = totalMass;
             first.drawRadius = Math.pow(Math.pow(first.drawRadius, 3) + Math.pow(second.drawRadius, 3), 1 / 3);
+            first.realRadius = Math.pow(Math.pow(first.realRadius, 3) + Math.pow(second.realRadius, 3), 1 / 3);
             spawnGravWaveRing(this.scene, first.mesh.position.clone());
             this.solar.remove(second);
           }
