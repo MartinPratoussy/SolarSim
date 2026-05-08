@@ -84,6 +84,7 @@ export class Scale6SolarSystem implements IScale {
   private readonly raycaster = new THREE.Raycaster();
   private readonly mouse = new THREE.Vector2();
   private cleanupCallbacks: Array<() => void> = [];
+  private moonParents = new Map<Body, Body>();
 
   private projectScenePosition(position: THREE.Vector3): void {
     if (!this.artisticScale) return;
@@ -111,8 +112,32 @@ export class Scale6SolarSystem implements IScale {
     return scenePosition;
   }
 
+  private visualMoonPosition(moon: Body, parent: Body): THREE.Vector3 {
+    const parentVisual = this.visualPosition(parent.position);
+    const rel = moon.position.clone().sub(parent.position);
+    const relScene = new THREE.Vector3(
+      metersToScene(rel.x),
+      metersToScene(rel.y),
+      metersToScene(rel.z),
+    );
+    const relLen = relScene.length();
+    if (relLen < 1e-6) return parentVisual;
+    const minOrbit = this.visualRadius(parent) + this.visualRadius(moon) + 0.6;
+    const artisticOrbit = Math.max(minOrbit, relLen * 14);
+    return parentVisual.addScaledVector(relScene.normalize(), artisticOrbit);
+  }
+
   private applyVisualTransform(body: Body): void {
-    body.mesh.position.copy(this.visualPosition(body.position));
+    if (this.artisticScale && body.type === 'moon') {
+      const parent = this.moonParents.get(body);
+      if (parent) {
+        body.mesh.position.copy(this.visualMoonPosition(body, parent));
+      } else {
+        body.mesh.position.copy(this.visualPosition(body.position));
+      }
+    } else {
+      body.mesh.position.copy(this.visualPosition(body.position));
+    }
     this.applyVisualScale(body);
     body.remapTrail(this.artisticScale ? (position) => this.projectScenePosition(position) : undefined);
   }
@@ -244,6 +269,8 @@ export class Scale6SolarSystem implements IScale {
         position: parent.position.clone().add(rel),
         velocity,
       }, this.scene);
+      moon.trailLine.visible = false;
+      this.moonParents.set(moon, parent);
       this.solar.add(moon);
     }
 
@@ -471,6 +498,7 @@ export class Scale6SolarSystem implements IScale {
     this.followMode = false;
     this.flyState = null;
     this.renderer = null;
+    this.moonParents.clear();
   }
 
   onResize(width: number, height: number): void {
