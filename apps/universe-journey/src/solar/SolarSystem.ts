@@ -37,6 +37,10 @@ export class SolarSystem {
     this.scene = scene;
   }
 
+  private collisionRadius(body: Body): number {
+    return body.drawRadius * Math.max(Math.abs(body.mesh.scale.x), 1e-6);
+  }
+
   add(body: Body) {
     this.bodies.push(body);
   }
@@ -63,9 +67,9 @@ export class SolarSystem {
         const b2 = this.bodies[j];
         if (removed.has(b2) || !b2.collidable) continue;
 
-        // Compare in scene units so threshold matches artistic drawRadius
+        // Compare in scene units using current visual radius (supports real-scale mode)
         const dist = b1.mesh.position.distanceTo(b2.mesh.position);
-        if (dist > b1.drawRadius + b2.drawRadius) continue;
+        if (dist > this.collisionRadius(b1) + this.collisionRadius(b2)) continue;
 
         const [survivor, absorbed] = b1.mass >= b2.mass ? [b1, b2] : [b2, b1];
         const massRatio = survivor.mass / absorbed.mass;
@@ -173,8 +177,7 @@ export class SolarSystem {
   }
 }
 
-/** Escape velocity (m/s) from a body's surface (drawRadius converted to SI meters). */
+/** Escape velocity (m/s) from a body's physical surface radius. */
 export function escapeVelocity(body: Body): number {
-  const r = body.drawRadius * (AU / 100); // scene units → meters
-  return Math.sqrt(2 * G * body.mass / r);
+  return Math.sqrt(2 * G * body.mass / Math.max(body.realRadius, 1));
 }
