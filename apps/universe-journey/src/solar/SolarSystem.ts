@@ -38,7 +38,11 @@ export class SolarSystem {
   }
 
   private collisionRadius(body: Body): number {
-    return body.drawRadius * Math.max(Math.abs(body.mesh.scale.x), 1e-6);
+    return Math.max(body.realRadius, 1);
+  }
+
+  private mergedRadius(a: number, b: number, fraction = 1): number {
+    return Math.pow(Math.pow(a, 3) + Math.pow(b, 3) * fraction, 1 / 3);
   }
 
   add(body: Body) {
@@ -67,8 +71,8 @@ export class SolarSystem {
         const b2 = this.bodies[j];
         if (removed.has(b2) || !b2.collidable) continue;
 
-        // Compare in scene units using current visual radius (supports real-scale mode)
-        const dist = b1.mesh.position.distanceTo(b2.mesh.position);
+        // Compare in physical SI space. Rendering scale mode must not change physics.
+        const dist = b1.position.distanceTo(b2.position);
         if (dist > this.collisionRadius(b1) + this.collisionRadius(b2)) continue;
 
         const [survivor, absorbed] = b1.mass >= b2.mass ? [b1, b2] : [b2, b1];
@@ -89,9 +93,8 @@ export class SolarSystem {
           this.onImpact!(survivor, absorbed, relVel);
           const absorbFrac = 0.3;
           survivor.mass += absorbed.mass * absorbFrac;
-          survivor.drawRadius = Math.pow(
-            Math.pow(survivor.drawRadius, 3) + Math.pow(absorbed.drawRadius, 3) * absorbFrac, 1 / 3
-          );
+          survivor.realRadius = this.mergedRadius(survivor.realRadius, absorbed.realRadius, absorbFrac);
+          survivor.drawRadius = this.mergedRadius(survivor.drawRadius, absorbed.drawRadius, absorbFrac);
           survivor.mesh.geometry.dispose();
           survivor.mesh.geometry = new THREE.SphereGeometry(survivor.drawRadius, 24, 24);
 
@@ -106,9 +109,8 @@ export class SolarSystem {
           survivor.velocity.y = (survivor.velocity.y * survivor.mass + absorbed.velocity.y * absorbed.mass) / totalMass;
           survivor.velocity.z = (survivor.velocity.z * survivor.mass + absorbed.velocity.z * absorbed.mass) / totalMass;
           survivor.mass = totalMass;
-          survivor.drawRadius = Math.pow(
-            Math.pow(survivor.drawRadius, 3) + Math.pow(absorbed.drawRadius, 3), 1 / 3
-          );
+          survivor.realRadius = this.mergedRadius(survivor.realRadius, absorbed.realRadius);
+          survivor.drawRadius = this.mergedRadius(survivor.drawRadius, absorbed.drawRadius);
           survivor.mesh.geometry.dispose();
           survivor.mesh.geometry = new THREE.SphereGeometry(survivor.drawRadius, 24, 24);
           this.promoteType(survivor);

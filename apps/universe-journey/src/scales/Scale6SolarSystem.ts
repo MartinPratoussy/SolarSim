@@ -89,8 +89,26 @@ export class Scale6SolarSystem implements IScale {
     if (this.artisticScale || body.type === 'blackhole') {
       return body.drawRadius;
     }
-    const minRadius = body.type === 'star' ? 0.25 : 0.05;
-    return Math.max(minRadius, metersToScene(body.realRadius) * 300);
+    return Math.max(1e-4, metersToScene(body.realRadius));
+  }
+
+  private visualPosition(position: THREE.Vector3): THREE.Vector3 {
+    const mapped = new THREE.Vector3(
+      metersToScene(position.x),
+      metersToScene(position.y),
+      metersToScene(position.z),
+    );
+    if (!this.artisticScale) return mapped;
+    const r = mapped.length();
+    if (r < 1e-6) return mapped;
+    // Artistic distance projection: spreads inner system and compresses outer system.
+    const projected = 6.2 * Math.pow(r, 0.78);
+    return mapped.multiplyScalar(projected / r);
+  }
+
+  private applyVisualTransform(body: Body): void {
+    body.mesh.position.copy(this.visualPosition(body.position));
+    this.applyVisualScale(body);
   }
 
   private applyVisualScale(body: Body): void {
@@ -102,7 +120,7 @@ export class Scale6SolarSystem implements IScale {
   private applyScaleMode(): void {
     if (!this.solar) return;
     for (const body of this.solar.bodies) {
-      this.applyVisualScale(body);
+      this.applyVisualTransform(body);
     }
   }
 
@@ -278,6 +296,7 @@ export class Scale6SolarSystem implements IScale {
       }
       this.simulatedDays += totalDt / DAY;
     }
+    this.applyScaleMode();
 
     for (const body of this.solar.bodies) {
       if (body.type === 'planet' || body.type === 'star') {
@@ -307,7 +326,7 @@ export class Scale6SolarSystem implements IScale {
         for (let j = i + 1; j < blackholes.length; j += 1) {
           const first = blackholes[i];
           const second = blackholes[j];
-          if (first.mesh.position.distanceTo(second.mesh.position) < first.drawRadius + second.drawRadius) {
+          if (first.mesh.position.distanceTo(second.mesh.position) < this.visualRadius(first) + this.visualRadius(second)) {
             const totalMass = first.mass + second.mass;
             first.velocity.multiplyScalar(first.mass / totalMass).addScaledVector(second.velocity, second.mass / totalMass);
             first.mass = totalMass;
@@ -370,10 +389,6 @@ export class Scale6SolarSystem implements IScale {
 
     if (this.gravityGrid.mesh.visible) {
       this.gravityGrid.update(this.solar.bodies);
-    }
-
-    if (!this.artisticScale) {
-      this.applyScaleMode();
     }
 
     this.lensPass.enabled = blackholes.length > 0;
@@ -737,7 +752,7 @@ export class Scale6SolarSystem implements IScale {
     }
 
     this.solar.add(body);
-    this.applyVisualScale(body);
+    this.applyVisualTransform(body);
   }
 
   private spawnImpactDebris(target: Body, impactor: Body, relVel: THREE.Vector3): void {
