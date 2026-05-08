@@ -40,9 +40,18 @@ interface ImpactFlash {
   duration: number;
 }
 
+interface BeltField {
+  points: THREE.Points;
+  physicalPositions: Float32Array;
+  displayPositions: Float32Array;
+  count: number;
+}
+
 const MAX_DEBRIS = 150;
 const MAX_SUBSTEP_DT = DAY * 2;
 const MAX_SUBSTEPS = 60;
+const ASTEROID_BELT_COUNT = 1200;
+const KUIPER_BELT_COUNT = 1800;
 
 const BODY_PRESETS: Record<BodyType, { mass: number; realRadius: number; drawRadius: number; color: number }> = {
   planet: { mass: 6e24, realRadius: 6.4e6, drawRadius: 1.0, color: 0x4fa3e0 },
@@ -85,6 +94,9 @@ export class Scale6SolarSystem implements IScale {
   private readonly mouse = new THREE.Vector2();
   private cleanupCallbacks: Array<() => void> = [];
   private moonParents = new Map<Body, Body>();
+  private asteroidBelt: BeltField | null = null;
+  private kuiperBelt: BeltField | null = null;
+  private readonly visualScratch = new THREE.Vector3();
 
   private projectScenePosition(position: THREE.Vector3): void {
     if (!this.artisticScale) return;
@@ -103,13 +115,75 @@ export class Scale6SolarSystem implements IScale {
   }
 
   private visualPosition(position: THREE.Vector3): THREE.Vector3 {
-    const scenePosition = new THREE.Vector3(
+    const scenePosition = new THREE.Vector3();
+    this.mapPhysicalToVisual(position, scenePosition);
+    return scenePosition;
+  }
+
+  private mapPhysicalToVisual(position: THREE.Vector3, target: THREE.Vector3): void {
+    target.set(
       metersToScene(position.x),
       metersToScene(position.y),
       metersToScene(position.z),
     );
-    this.projectScenePosition(scenePosition);
-    return scenePosition;
+    this.projectScenePosition(target);
+  }
+
+  private createBeltField(
+    count: number,
+    innerAu: number,
+    outerAu: number,
+    thicknessAu: number,
+    baseColor: number,
+    size: number,
+    opacity: number,
+  ): BeltField {
+    const physicalPositions = new Float32Array(count * 3);
+    const displayPositions = new Float32Array(count * 3);
+    const color = new Float32Array(count * 3);
+    const colorObj = new THREE.Color();
+    for (let i = 0; i < count; i += 1) {
+      const radius = (innerAu + Math.random() * (outerAu - innerAu)) * AU;
+      const theta = Math.random() * Math.PI * 2;
+      const y = (Math.random() - 0.5) * thicknessAu * AU;
+      physicalPositions[i * 3] = Math.cos(theta) * radius;
+      physicalPositions[i * 3 + 1] = y;
+      physicalPositions[i * 3 + 2] = Math.sin(theta) * radius;
+      colorObj.setHex(baseColor).offsetHSL(0, (Math.random() - 0.5) * 0.05, (Math.random() - 0.5) * 0.15);
+      color[i * 3] = colorObj.r;
+      color[i * 3 + 1] = colorObj.g;
+      color[i * 3 + 2] = colorObj.b;
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(displayPositions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(color, 3));
+    const material = new THREE.PointsMaterial({
+      size,
+      sizeAttenuation: true,
+      vertexColors: true,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+    });
+    const points = new THREE.Points(geometry, material);
+    this.scene.add(points);
+    return { points, physicalPositions, displayPositions, count };
+  }
+
+  private updateBeltVisuals(field: BeltField | null): void {
+    if (!field) return;
+    for (let i = 0; i < field.count; i += 1) {
+      this.visualScratch.set(
+        field.physicalPositions[i * 3],
+        field.physicalPositions[i * 3 + 1],
+        field.physicalPositions[i * 3 + 2],
+      );
+      this.mapPhysicalToVisual(this.visualScratch, this.visualScratch);
+      field.displayPositions[i * 3] = this.visualScratch.x;
+      field.displayPositions[i * 3 + 1] = this.visualScratch.y;
+      field.displayPositions[i * 3 + 2] = this.visualScratch.z;
+    }
+    (field.points.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
   }
 
   private visualMoonPosition(moon: Body, parent: Body): THREE.Vector3 {
@@ -153,6 +227,8 @@ export class Scale6SolarSystem implements IScale {
     for (const body of this.solar.bodies) {
       this.applyVisualTransform(body);
     }
+    this.updateBeltVisuals(this.asteroidBelt);
+    this.updateBeltVisuals(this.kuiperBelt);
   }
 
   init(_container: HTMLElement, renderer: THREE.WebGLRenderer): void {
@@ -187,6 +263,8 @@ export class Scale6SolarSystem implements IScale {
     this.scene.add(this.sunLight);
     this.scene.add(new THREE.AmbientLight(0x334466, 0.6));
     createStarfield(this.scene);
+    this.asteroidBelt = this.createBeltField(ASTEROID_BELT_COUNT, 2.1, 3.4, 0.18, 0xa39e93, 0.35, 0.55);
+    this.kuiperBelt = this.createBeltField(KUIPER_BELT_COUNT, 30, 52, 2.2, 0x8fa4bd, 0.28, 0.45);
 
     this.gravityGrid = createGravityGrid(this.scene);
     this.scene.remove(this.gravityGrid.mesh);
@@ -499,6 +577,8 @@ export class Scale6SolarSystem implements IScale {
     this.flyState = null;
     this.renderer = null;
     this.moonParents.clear();
+    this.asteroidBelt = null;
+    this.kuiperBelt = null;
   }
 
   onResize(width: number, height: number): void {
