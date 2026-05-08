@@ -89,7 +89,7 @@ export class Scale6SolarSystem implements IScale {
     this.dispose();
     this.renderer = renderer;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x02040a);
+    this.scene.background = new THREE.Color(0x03060d);
     this.overlayScene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 100000);
     this.camera.position.set(0, 250, 500);
