@@ -17,21 +17,23 @@ export class EduPanel {
   private readonly progressContainer = document.getElementById('progress-bar-container') as HTMLDivElement;
   private readonly progressFill = document.getElementById('progress-fill') as HTMLDivElement;
   private readonly progressLabel = document.getElementById('progress-label') as HTMLSpanElement;
+  private readonly toggleBtn = document.getElementById('edu-toggle-btn') as HTMLButtonElement;
   private readonly mobileToggle: HTMLButtonElement;
+  private readonly mobileMedia = window.matchMedia('(max-width: 920px)');
   private toastTimer: number | null = null;
 
   constructor() {
     // Panel collapse toggle
-    const toggleBtn = document.getElementById('edu-toggle-btn') as HTMLButtonElement;
     this.mobileToggle = document.createElement('button');
     this.mobileToggle.id = 'edu-mobile-toggle';
     this.mobileToggle.type = 'button';
     document.body.appendChild(this.mobileToggle);
 
-    const shouldStartCollapsed = window.matchMedia('(max-width: 920px)').matches;
-    this.setCollapsed(shouldStartCollapsed, toggleBtn);
-    toggleBtn.addEventListener('click', () => this.setCollapsed(!this.panel.classList.contains('collapsed'), toggleBtn));
-    this.mobileToggle.addEventListener('click', () => this.setCollapsed(!this.panel.classList.contains('collapsed'), toggleBtn));
+    this.setCollapsed(this.mobileMedia.matches, this.toggleBtn);
+    this.toggleBtn.addEventListener('click', () => this.setCollapsed(!this.panel.classList.contains('collapsed'), this.toggleBtn));
+    this.mobileToggle.addEventListener('click', () => this.setCollapsed(!this.panel.classList.contains('collapsed'), this.toggleBtn));
+    this.mobileMedia.addEventListener('change', () => this.applyResponsiveMode());
+    this.applyResponsiveMode();
 
     EventBus.on('edu:update', ({ title, body, hint }) => {
       this.title.textContent = title;
@@ -64,10 +66,22 @@ export class EduPanel {
 
   private setCollapsed(collapsed: boolean, toggleBtn: HTMLButtonElement): void {
     this.panel.classList.toggle('collapsed', collapsed);
-    document.body.classList.toggle('edu-open-mobile', !collapsed);
+    document.body.classList.toggle('edu-open-mobile', this.mobileMedia.matches && !collapsed);
     toggleBtn.textContent = collapsed ? '▶' : '◀';
     this.mobileToggle.textContent = collapsed ? 'Show explanations' : 'Hide explanations';
     this.mobileToggle.setAttribute('aria-pressed', (!collapsed).toString());
+  }
+
+  private applyResponsiveMode(): void {
+    if (this.mobileMedia.matches) {
+      document.body.classList.toggle('edu-open-mobile', !this.panel.classList.contains('collapsed'));
+      return;
+    }
+    this.panel.classList.remove('collapsed');
+    document.body.classList.remove('edu-open-mobile');
+    this.toggleBtn.textContent = '◀';
+    this.mobileToggle.textContent = 'Show explanations';
+    this.mobileToggle.setAttribute('aria-pressed', 'false');
   }
 
   private showToast(title: string, body: string): void {
