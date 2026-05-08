@@ -1,21 +1,29 @@
 import * as THREE from 'three';
 import { Body } from './Body';
 
-/** Create a starfield as a Points object on a large sphere */
+/** Create a subtle starfield on a very large sphere */
 export function createStarfield(scene: THREE.Scene) {
-  const count = 6000;
+  const count = 9000;
   const positions = new Float32Array(count * 3);
-  const radius = 15000;
+  const colors = new Float32Array(count * 3);
+  const radius = 28000;
   for (let i = 0; i < count; i++) {
     const theta = Math.random() * 2 * Math.PI;
     const phi   = Math.acos(2 * Math.random() - 1);
-    positions[i * 3]     = radius * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-    positions[i * 3 + 2] = radius * Math.cos(phi);
+    const r = radius * (0.85 + Math.random() * 0.15);
+    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i * 3 + 2] = r * Math.cos(phi);
+    const tint = Math.random();
+    const brightness = 0.25 + Math.random() * 0.45;
+    colors[i * 3]     = brightness * (0.85 + tint * 0.15);
+    colors[i * 3 + 1] = brightness * (0.86 + (1 - tint) * 0.1);
+    colors[i * 3 + 2] = brightness;
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 4, sizeAttenuation: false, transparent: true, opacity: 0.85 });
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({ vertexColors: true, size: 0.9, sizeAttenuation: true, transparent: true, opacity: 0.72 });
   scene.add(new THREE.Points(geo, mat));
 }
 
