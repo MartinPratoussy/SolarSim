@@ -85,6 +85,27 @@ export class Scale6SolarSystem implements IScale {
   private readonly mouse = new THREE.Vector2();
   private cleanupCallbacks: Array<() => void> = [];
 
+  private visualRadius(body: Body): number {
+    if (this.artisticScale || body.type === 'blackhole') {
+      return body.drawRadius;
+    }
+    const minRadius = body.type === 'star' ? 0.25 : 0.05;
+    return Math.max(minRadius, metersToScene(body.realRadius) * 300);
+  }
+
+  private applyVisualScale(body: Body): void {
+    const radius = this.visualRadius(body);
+    const safeBaseRadius = Math.max(body.drawRadius, 1e-6);
+    body.mesh.scale.setScalar(radius / safeBaseRadius);
+  }
+
+  private applyScaleMode(): void {
+    if (!this.solar) return;
+    for (const body of this.solar.bodies) {
+      this.applyVisualScale(body);
+    }
+  }
+
   init(_container: HTMLElement, renderer: THREE.WebGLRenderer): void {
     this.dispose();
     this.renderer = renderer;
@@ -193,6 +214,7 @@ export class Scale6SolarSystem implements IScale {
     this.flyState = null;
     this.impactFlashes = [];
 
+    this.applyScaleMode();
     this.setSolarUiVisible(true);
     this.bindUI();
     updateInfoPanel(null, 0);
@@ -277,7 +299,7 @@ export class Scale6SolarSystem implements IScale {
 
     if (this.flyState) {
       if (this.selectedBody) {
-        const zoom = Math.max(this.selectedBody.drawRadius * 12, 18);
+        const zoom = Math.max(this.visualRadius(this.selectedBody) * 12, 18);
         const direction = this.flyState.camEnd.clone().sub(this.flyState.targetEnd).normalize();
         this.flyState.targetEnd.copy(this.selectedBody.mesh.position);
         this.flyState.camEnd.copy(this.selectedBody.mesh.position).addScaledVector(direction, zoom);
@@ -314,6 +336,10 @@ export class Scale6SolarSystem implements IScale {
 
     if (this.gravityGrid.mesh.visible) {
       this.gravityGrid.update(this.solar.bodies);
+    }
+
+    if (!this.artisticScale) {
+      this.applyScaleMode();
     }
 
     this.lensPass.enabled = blackholes.length > 0;
@@ -425,18 +451,11 @@ export class Scale6SolarSystem implements IScale {
     if (scaleToggle) {
       const handler = () => {
         this.artisticScale = !this.artisticScale;
-        scaleToggle.textContent = this.artisticScale ? '🔭 Artistic Scale' : '🔭 True Scale';
+        scaleToggle.textContent = this.artisticScale ? '🔭 Artistic Scale' : '🔭 Real Scale';
         if (!this.solar) {
           return;
         }
-        for (const body of this.solar.bodies) {
-          if (body.type === 'star' || body.type === 'blackhole') {
-            continue;
-          }
-          const newRadius = this.artisticScale ? body.drawRadius : Math.max(0.05, metersToScene(body.realRadius) * 300);
-          body.mesh.geometry.dispose();
-          body.mesh.geometry = new THREE.SphereGeometry(newRadius, 24, 24);
-        }
+        this.applyScaleMode();
       };
       scaleToggle.textContent = '🔭 Artistic Scale';
       scaleToggle.addEventListener('click', handler);
@@ -495,7 +514,7 @@ export class Scale6SolarSystem implements IScale {
       this.followMode = false;
       this.selectedBody = body;
       updateInfoPanel(body, this.solar?.findStar()?.mass ?? 0);
-      const zoom = Math.max(body.drawRadius * 12, 18);
+      const zoom = Math.max(this.visualRadius(body) * 12, 18);
       const direction = this.camera.position.clone().sub(this.controls.target).normalize();
       this.flyState = {
         targetStart: this.controls.target.clone(),
@@ -684,6 +703,7 @@ export class Scale6SolarSystem implements IScale {
     }
 
     this.solar.add(body);
+    this.applyVisualScale(body);
   }
 
   private spawnImpactDebris(target: Body, impactor: Body, relVel: THREE.Vector3): void {
