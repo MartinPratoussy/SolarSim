@@ -11,6 +11,7 @@ import { EventBus as SolarEventBus } from '../solar/solarEvents';
 import { AU, BASE_TIMESTEP, DAY, G } from '../solar/constants';
 import { MAJOR_MOONS, SOLAR_DATA, initialPosition } from '../solar/solarData';
 import { updateInfoPanel, showTooltip, hideTooltip } from '../solar/ui';
+import { mathHtml } from '../EduPanel';
 import {
   addAtmosphere,
   addSaturnRing,
@@ -620,6 +621,11 @@ export class Scale6SolarSystem implements IScale {
           return;
         }
         this.applyScaleMode();
+        EventBus.emit('edu:event', {
+          text: this.artisticScale
+            ? 'Artistic mode: inner-system distances are expanded so moons, belts, and inner planets are easier to inspect.'
+            : 'Real mode: visual distances and sizes follow physical scale (1 AU and true radii).',
+        });
       };
       scaleToggle.textContent = '🔭 Artistic Scale';
       scaleToggle.addEventListener('click', handler);
@@ -749,12 +755,36 @@ export class Scale6SolarSystem implements IScale {
   }
 
   private emitEducation(): void {
+    const gravityLaw = mathHtml('F = G\\frac{m_1 m_2}{r^2}');
+    const orbitalSpeed = mathHtml('v \\approx \\sqrt{\\frac{GM}{r}}');
     EventBus.emit('edu:update', {
       title: 'Scale 6 — Solar System (10¹¹ m)',
-      body: 'You made it! From quarks to a star with orbiting planets. This is Newtonian N-body gravity — every body attracts every other body via F = Gm₁m₂/r². Add stars, black holes, watch chaos unfold.',
-      hint: '👆 Use the toolbar to add bodies. Double-click to focus camera on a body.',
+      body: `<p>You made it from quarks to a full planetary system. This sandbox runs Newtonian N-body gravity: every mass pulls every other mass at every instant.</p>
+<div class="edu-section">
+  <div class="edu-card-name">Universal gravity</div>
+  ${gravityLaw}
+  <div class="edu-card-sub">That single law shapes planetary orbits, moon systems, collisions, and ejections.</div>
+</div>
+<div class="edu-section">
+  <div class="edu-card-name">Orbital speed trend</div>
+  ${orbitalSpeed}
+  <div class="edu-card-sub">Bodies closer to a massive object move faster. That is why inner planets and many moons orbit quickly.</div>
+</div>
+<hr/>
+<div class="edu-section">
+  <div class="edu-card-name">Belts in this scene</div>
+  <div class="edu-card-sub">🪨 <strong>Asteroid Belt</strong>: between Mars and Jupiter (~2.1–3.4 AU), shaped by resonances and Jupiter's gravity.</div>
+  <div class="edu-card-sub">🧊 <strong>Kuiper Belt</strong>: beyond Neptune (~30–52 AU), a cold reservoir of icy bodies and short-period comet sources.</div>
+</div>
+<div class="edu-section">
+  <div class="edu-card-name">Scale toggle meaning</div>
+  <div class="edu-card-sub">🔭 <strong>Artistic</strong>: distances are visually remapped so structure is easier to read.</div>
+  <div class="edu-card-sub">📏 <strong>Real</strong>: visuals use true relative sizes and distances. Physics is unchanged in both modes.</div>
+</div>`,
+      hint: 'Select a planet or moon for details, double-click to fly to it, and use Artistic/Real to compare readability vs physical proportion.',
     });
     EventBus.emit('edu:event', { text: 'Scale 6 is live: the full SolarSim sandbox now runs inside the journey.' });
+    EventBus.emit('edu:event', { text: 'Asteroid Belt added (2.1–3.4 AU) and Kuiper Belt added (30–52 AU).' });
   }
 
   private setSolarUiVisible(visible: boolean): void {
